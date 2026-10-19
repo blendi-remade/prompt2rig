@@ -21,11 +21,32 @@ const PORT = Number(process.env.PORT || 5177);
 const HQ_URL = process.env.HQ_URL || 'http://127.0.0.1:5178';
 if (!FAL_KEY) console.warn('[prompt2rig] FAL_KEY is not set — generation will fail. Put it in .env');
 
-const MODELS = {
-  t2v: 'minimax/h3-max-turbo/text-to-video',
-  i2v: 'minimax/h3-max-turbo/image-to-video',
-  image: 'fal-ai/flux/schnell',
+const VIDEO_MODELS = {
+  // MiniMax H3 Max Turbo — faster than real time (~0.5s GPU for 5s @ 480P)
+  h3: {
+    t2v: 'minimax/h3-max-turbo/text-to-video',
+    i2v: 'minimax/h3-max-turbo/image-to-video',
+    input: (b, i2v) => ({
+      duration: Math.min(15, Math.max(1, Number(b.duration) || 5)),
+      resolution: ['480P', '768P', '1080P'].includes(b.resolution) ? b.resolution : '480P',
+      prompt_expansion_mode: 'disabled',
+      ...(i2v ? {} : { aspect_ratio: b.aspect_ratio || '16:9' }),
+    }),
+  },
+  // FLUX 3 Max — higher fidelity, ~real time (5s @ 720p ≈ 4.5s GPU, ~9s wall)
+  flux3: {
+    t2v: 'blackforestlabs/flux-3-max/text-to-video',
+    i2v: 'blackforestlabs/flux-3-max/image-to-video',
+    input: (b, i2v) => ({
+      duration: Math.min(20, Math.max(5, Math.round(Number(b.duration) || 5))),
+      resolution: b.resolution === '1080P' ? '1080p' : '720p',
+      generate_audio: false,
+      reasoning_level: b.reasoning_level === 'high' ? 'high' : 'low',
+      aspect_ratio: i2v ? 'auto' : (b.aspect_ratio || '16:9'),
+    }),
+  },
 };
+const IMAGE_MODEL = 'fal-ai/flux/schnell';
 
 async function falRun(model, input) {
   const t0 = performance.now();
@@ -69,24 +90,19 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'POST' && url.pathname === '/api/video') {
       const b = await readJson(req);
+      const model = VIDEO_MODELS[b.model] ? b.model : 'h3';
       const mode = b.image_url ? 'i2v' : 't2v';
-      const input = {
-        prompt: String(b.prompt || '').slice(0, 4000),
-        duration: Math.min(15, Math.max(1, Number(b.duration) || 5)),
-        resolution: ['480P', '768P', '1080P'].includes(b.resolution) ? b.resolution : '480P',
-        prompt_expansion_mode: b.prompt_expansion_mode || 'disabled',
-      };
+      const input = { prompt: String(b.prompt || '').slice(0, 4000), ...VIDEO_MODELS[model].input(b, mode === 'i2v') };
       if (b.seed != null && b.seed !== '') input.seed = Number(b.seed);
       if (mode === 'i2v') input.image_url = b.image_url;
-      else input.aspect_ratio = b.aspect_ratio || '16:9';
-      const out = await falRun(MODELS[mode], input);
-      console.log(`[video] ${mode} ${input.duration}s ${input.resolution} in ${out._elapsed.toFixed(1)}s (gpu ${out.timings?.inference?.toFixed?.(2) ?? '?'}s)`);
-      return send(res, 200, { mode, video_url: out.video?.url, timings: out.timings, elapsed: out._elapsed, expanded_prompt: out.expanded_prompt });
+      const out = await falRun(VIDEO_MODELS[model][mode], input);
+      console.log(`[video] ${model} ${mode} ${input.duration}s ${input.resolution} in ${out._elapsed.toFixed(1)}s (gpu ${out.timings?.inference?.toFixed?.(2) ?? '?'}s)`);
+      return send(res, 200, { model, mode, video_url: out.video?.url, timings: out.timings, elapsed: out._elapsed });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/image') {
       const b = await readJson(req);
-      const out = await falRun(MODELS.image, {
+      const out = await falRun(IMAGE_MODEL, {
         prompt: String(b.prompt || '').slice(0, 4000),
         image_size: b.image_size || 'landscape_16_9',
         num_inference_steps: 4,

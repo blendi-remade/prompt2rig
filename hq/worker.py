@@ -120,7 +120,10 @@ class FastSingleDetector:
         boxes = np.zeros((len(frames), 4), np.float32)
         found = np.zeros(len(frames), bool)
         for i in range(0, len(frames), self.batch):
-            results = self.yolo.predict(frames[i:i + self.batch], classes=[0], conf=0.3, half=True, device=0, verbose=False)
+            chunk = frames[i:i + self.batch]
+            # Pad to a fixed batch size: every new batch shape costs a slow first CUDA call.
+            pad = [chunk[-1]] * (self.batch - len(chunk))
+            results = self.yolo.predict(chunk + pad, classes=[0], conf=0.3, half=True, device=0, verbose=False)[:len(chunk)]
             for j, r in enumerate(results):
                 if len(r.boxes):
                     xyxy = r.boxes.xyxy.cpu().numpy()
@@ -172,8 +175,8 @@ def warmup() -> None:
         leg_length(result.smpl_params_world)
         if DETECTOR == "fast":  # first YOLO call per input shape is slow: cover both orientations
             det = FastSingleDetector.get()
-            for h, w in ((480, 832), (832, 480), (768, 1360), (1360, 768)):
-                for n in (det.batch, 27):
+            for h, w in ((480, 832), (832, 480), (470, 854), (854, 470)):  # H3 480P, FLUX 3 720p (downscaled)
+                for n in (det.batch,):
                     det.yolo.predict([np.zeros((h, w, 3), np.uint8)] * n, classes=[0], half=True, device=0, verbose=False)
         log(f"warmup done in {time.perf_counter() - t0:.1f}s")
     except Exception as e:  # noqa: BLE001
@@ -262,7 +265,10 @@ def process(body: ProcessIn):
         with urllib.request.urlopen(body.video_url, timeout=30) as r, open(src, "wb") as f:
             shutil.copyfileobj(r, f)
         # GVHMR runs at 30fps and would re-encode a 24fps clip with a slow preset; do it fast here.
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-vf", "fps=30", "-an",
+        # It only ever sees 256px person crops, so cap the long side at 854px (H3 480P size): 720p+
+        # sources (FLUX 3) otherwise cost ~2x in decode/crop for no accuracy gain.
+        fit = "scale='if(gt(iw,ih),min(854,iw),-2)':'if(gt(iw,ih),-2,min(854,ih))'"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-vf", f"fps=30,{fit}", "-an",
                         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16", str(video)], check=True)
     t_dl = time.perf_counter() - t0
     if not (CACHE / "_warmup.mp4").exists():  # reused to warm CUDA kernels on the next start

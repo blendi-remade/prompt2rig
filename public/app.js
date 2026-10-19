@@ -9,7 +9,14 @@ import { FilesetResolver, PoseLandmarker, DrawingUtils } from '@mediapipe/tasks-
 import { Rig, OneEuro, Track, trackToClip, blendSnapshots, smplGlobals, aaToQuat } from './retarget.js';
 
 const $ = (s) => document.querySelector(s);
-const XBOT_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/models/gltf/Xbot.glb';
+// Mixamo-rigged characters from the three.js examples (loaded from the CDN, not redistributed here).
+const THREE_MODELS = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r169/examples/models/gltf/';
+const CHARACTERS = {
+  xbot: { name: 'X Bot', url: THREE_MODELS + 'Xbot.glb' },
+  michelle: { name: 'Michelle', url: THREE_MODELS + 'Michelle.glb' },
+  soldier: { name: 'Soldier', url: THREE_MODELS + 'Soldier.glb' },
+};
+const VIDEO_MODEL_LABEL = { h3: 'H3 Max Turbo', flux3: 'FLUX 3 Max' };
 const MP_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
 const MP_MODEL = (v) => `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${v}/float16/latest/pose_landmarker_${v}.task`;
 
@@ -44,6 +51,7 @@ const videoPrompt = (action, fromImage) => fromImage
 const DEFAULTS = {
   stream: false, source: 'performer', chain: false, duration: 5, resolution: '480P', hq: true, waitHq: false,
   rootMotion: true, poseModel: 'heavy', smoothing: 0.5, showSkel: true, orientation: 'portrait', performerUrls: {},
+  character: 'xbot', videoModel: 'h3',
 };
 const settings = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('p2r') || '{}') }; } catch { return { ...DEFAULTS }; } })();
 const save = () => { try { localStorage.setItem('p2r', JSON.stringify(settings)); } catch {} };
@@ -120,6 +128,13 @@ async function loadCharacter(src, name = 'X Bot') {
   const root = isFbx ? obj : obj.scene;
   if (isFbx) root.scale.setScalar(0.01);         // Mixamo FBX is in centimeters
   root.updateMatrixWorld(true);
+  // Retargeting assumes the character faces +Z (toward the camera); some exports face -Z.
+  const armX = (side) => {
+    let b; root.traverse((o) => { if (!b && o.isBone && o.name.replace(/^mixamorig\d*[:_]?/i, '') === side + 'Arm') b = o; });
+    return b?.getWorldPosition(new THREE.Vector3()).x;
+  };
+  const lx = armX('Left'), rx = armX('Right');
+  if (lx != null && rx != null && lx < rx) { root.rotation.y += Math.PI; root.updateMatrixWorld(true); }
   const box = new THREE.Box3().setFromObject(root);
   root.position.y -= box.min.y;
   root.position.x -= (box.min.x + box.max.x) / 2;
@@ -131,7 +146,9 @@ async function loadCharacter(src, name = 'X Bot') {
   if (model) scene.remove(model);
   scene.add(root); model = root; rig = newRig;
   // Takes store bone-order-specific data; re-bake HQ data for the new skeleton.
-  for (const t of takes) { t.live = null; t.liveDone = false; if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); }
+  for (const t of takes) { t.live = new Track(rig.order.length); t.liveDone = false; if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); }
+  liveState ||= { hip0: null, baseY: null, mpp: null, scale: null };
+  liveSnap = null; switchFrom = null;
   pill('rig', name, 'ok');
   log(`character: ${name} (${rig.order.length} bones, ${rig.height.toFixed(2)} m)`);
 }
@@ -247,10 +264,10 @@ async function generate(take) {
       image_url = await ensurePerformer(); from = 'performer';
     }
     banner(`Generating #${take.id}…`);
-    log(`#${take.id} → H3 Max Turbo (${from}, ${settings.duration}s ${settings.resolution})`);
+    log(`#${take.id} → ${VIDEO_MODEL_LABEL[settings.videoModel]} (${from}, ${settings.duration}s ${settings.resolution})`);
     const r = await api('/api/video', {
       prompt: videoPrompt(take.prompt, !!image_url), image_url,
-      duration: settings.duration, resolution: settings.resolution, aspect_ratio: settings.orientation === 'portrait' ? '9:16' : '16:9',
+      model: settings.videoModel, duration: settings.duration, resolution: settings.resolution, aspect_ratio: settings.orientation === 'portrait' ? '9:16' : '16:9',
     });
     take.videoUrl = r.video_url; take.status = 'ready';
     take.timings.gen = (performance.now() - t0) / 1000;
@@ -566,6 +583,11 @@ bindSetting('stream', 'checked', (on) => {
   for (const id of ['chain', 'waitHq']) { const el = $('#' + id); el.disabled = on; el.closest('label').style.opacity = on ? 0.5 : 1; }
 });
 bindSetting('source'); bindSetting('chain', 'checked'); bindSetting('resolution');
+bindSetting('videoModel', 'value', (m) => {
+  const d = $('#duration'); d.min = m === 'flux3' ? 5 : 2;  // FLUX 3 Max: 5–20s
+  if (settings.duration < d.min) { settings.duration = Number(d.min); d.value = d.min; $('#duration-v').textContent = d.min + 's'; save(); }
+});
+bindSetting('character', 'value', (c) => { if (rig && CHARACTERS[c]) loadCharacter(CHARACTERS[c].url, CHARACTERS[c].name).catch((e) => log('character failed: ' + e.message, 'err')); });
 bindSetting('duration', 'value', (v) => ($('#duration-v').textContent = v + 's'));
 bindSetting('hq', 'checked'); bindSetting('waitHq', 'checked'); bindSetting('rootMotion', 'checked');
 bindSetting('showSkel', 'checked');
@@ -614,7 +636,8 @@ window.p2r = {
 // ---- boot --------------------------------------------------------------------------------------
 resize();
 frame();
-loadCharacter(XBOT_URL, 'X Bot').catch((e) => { log('character failed: ' + e.message, 'err'); pill('rig', 'character failed', 'bad'); });
+const startChar = CHARACTERS[settings.character] || CHARACTERS.xbot;
+loadCharacter(startChar.url, startChar.name).catch((e) => { log('character failed: ' + e.message, 'err'); pill('rig', 'character failed', 'bad'); });
 initPose(settings.poseModel).catch((e) => { log('pose model failed: ' + e.message, 'err'); pill('pose', 'pose failed', 'bad'); });
 checkHQ(); setInterval(checkHQ, 10000);
 log('ready — type a motion and hit Generate');

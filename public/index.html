@@ -108,6 +108,8 @@
     <div class="section">
       <label class="title">Generation</label>
       <label class="check"><input type="checkbox" id="stream" /><span><b>Stream mode</b><small>One continuous performance: each clip continues from the last, plays once its HQ motion is ready, and idles between prompts.</small></span></label>
+      <div class="row"><span>Video model</span>
+        <select id="videoModel"><option value="h3">H3 Max Turbo (fastest)</option><option value="flux3">FLUX 3 Max (best)</option></select></div>
       <div class="row"><span>Orientation</span>
         <select id="orientation"><option value="portrait">Portrait 9:16</option><option value="landscape">Landscape 16:9</option></select></div>
       <div class="row"><span>Source</span>
@@ -128,9 +130,11 @@
     </div>
 
     <div class="section">
-      <label class="title">Files</label>
+      <label class="title">Character</label>
+      <div class="row"><span>Rig</span>
+        <select id="character"><option value="xbot">X Bot</option><option value="michelle">Michelle</option><option value="soldier">Soldier</option></select></div>
       <div class="row">
-        <button class="btn" id="btn-char">Load character…</button>
+        <button class="btn" id="btn-char">Load Mixamo file…</button>
         <button class="btn" id="btn-vid">Use a video file…</button>
       </div>
       <input type="file" id="file-char" accept=".glb,.gltf,.fbx" />
