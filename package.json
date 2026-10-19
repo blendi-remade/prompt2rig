@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Prompt → fast video model (fal H3 Max Turbo) → pose estimation → live retargeting onto a Mixamo-rigged character",
+  "description": "Prompt → fast video model (H3 Max Turbo / FLUX 3 Max on fal) → GVHMR motion → live retargeting onto Mixamo characters",
+  "license": "Apache-2.0",
   "scripts": {
     "start": "node server.mjs"
   }

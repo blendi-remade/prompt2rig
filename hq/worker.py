@@ -220,7 +220,10 @@ _BODY: dict = {}
 
 
 def leg_length(params) -> float:
-    """Mean hip→ankle length (m) of the recovered body; models cached across calls."""
+    """Mean hip→ankle length (m) of the recovered body; models cached across calls.
+
+    SMPL-X → SMPL joint regression adapted from Motion2MixamoRig (Apache-2.0), see NOTICE.
+    """
     from einops import einsum
     from gvhmr import PROJ_ROOT
     from gvhmr.utils.smplx_utils import make_smplx

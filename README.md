@@ -99,10 +99,26 @@ Writes `renders/<take>.mp4` (1080×1920 by default, `--res 1920x1080` for landsc
 
 </details>
 
-## Credits & licenses
+## Credits
 
-- [GVHMR](https://github.com/zju3dv/GVHMR) (ZJU3DV) via the [`gvhmr`](https://pypi.org/project/gvhmr/) package · [Motion2MixamoRig](https://github.com/MaxLiu22/Motion2MixamoRig) (Apache-2.0) for the idea and the keypoint stabilizer
-- [MediaPipe Pose](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) · [three.js](https://threejs.org) (X Bot, Michelle and Soldier from its examples, loaded from the CDN) · video/image models on [fal](https://fal.ai)
-- **SMPL-X** is licensed for non-commercial research only and is not included — download it yourself.
+- [GVHMR](https://github.com/zju3dv/GVHMR) (ZJU3DV) via the [`gvhmr`](https://pypi.org/project/gvhmr/) package · [Motion2MixamoRig](https://github.com/MaxLiu22/Motion2MixamoRig) for the idea, the keypoint stabilizer and the SMPL joint helper
+- [MediaPipe Pose](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) · [three.js](https://threejs.org) (X Bot, Michelle and Soldier from its examples) · video and image models on [fal](https://fal.ai)
+
+## License
+
+Prompt2Rig's own code is licensed under **[Apache-2.0](LICENSE)** (see [NOTICE](NOTICE)).
+
+It runs alongside third-party components that keep their own licenses — none are included in this repo:
+
+| Component | License | Commercial use |
+|---|---|---|
+| [GVHMR](https://github.com/zju3dv/GVHMR) — the HQ motion pass | educational / research / non-profit only | ❌ |
+| [SMPL-X](https://smpl-x.is.tue.mpg.de/) body model | non-commercial, registration required | ❌ (separate commercial license from Meshcapade) |
+| [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) — person detector in the HQ worker | AGPL-3.0 | ⚠️ copyleft, or an Ultralytics enterprise license |
+| MediaPipe · three.js | Apache-2.0 · MIT | ✅ |
+| Mixamo characters | Adobe Mixamo terms (loaded from the three.js CDN, not redistributed) | ✅ in your own projects |
+| H3 Max Turbo, FLUX 3 Max, FLUX.1 schnell | fal and model-provider terms | per those terms |
+
+In short: the web app, live preview and video generation are commercially usable; the **HQ path (GVHMR + SMPL-X) is research / non-commercial**, so a commercial product would need to replace or license those pieces.
 
 Prototype — tested on Windows 11 with an RTX 4090.
