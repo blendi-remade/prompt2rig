@@ -585,6 +585,8 @@ function showPerformer() {
   const img = $('#performer-img'), url = settings.performerUrls[settings.orientation];
   img.classList.toggle('portrait', settings.orientation === 'portrait');
   if (url) img.src = url; else img.removeAttribute('src');
+  // Before any clip has loaded, shape the empty video panel like the clips that will come.
+  if (!video.videoWidth) $('#vidwrap').classList.toggle('portrait', settings.orientation === 'portrait');
 }
 if (settings.performerUrl) { settings.performerUrls.landscape ||= settings.performerUrl; delete settings.performerUrl; save(); }
 bindSetting('orientation', 'value', showPerformer);

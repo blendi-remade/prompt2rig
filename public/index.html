@@ -59,6 +59,7 @@
   .vidwrap .empty { aspect-ratio: 16/9; display: grid; place-items: center; color: var(--dim); }
   .vidwrap.portrait { width: auto; height: min(62%, 640px); aspect-ratio: 9/16; }
   .vidwrap.portrait video { width: 100%; height: 100%; object-fit: contain; }
+  .vidwrap.portrait .empty { aspect-ratio: auto; height: 100%; padding: 0 16px; text-align: center; }
   .hud { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
   .hud .tag { font: 12px ui-monospace, Consolas, monospace; background: rgba(14,15,17,.75); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
   .hud .src-live { color: var(--warn); } .hud .src-hq { color: var(--accent); }
