@@ -1,0 +1,17 @@
+# secrets
+.env
+
+# HQ worker: env, downloaded weights, licensed body model, per-clip cache, logs
+hq/.venv/
+hq/weights/
+hq/body_models/
+hq/cache/
+*.log
+*.pt
+
+# local reference checkout
+vendor/
+
+node_modules/
+__pycache__/
+.DS_Store

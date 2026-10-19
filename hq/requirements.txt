@@ -1,0 +1,7 @@
+# HQ worker deps (installed by hq/setup.ps1 — torch and chumpy need special flags, see there).
+# Motion2MixamoRig pulls in gvhmr[preproc,rtmpose]; we reuse its 2D-pose L/R stabilizer.
+motion2mixamorig @ git+https://github.com/MaxLiu22/Motion2MixamoRig@2835dcdfba30e78a2610360b9b2a1e1121d85159
+gvhmr==1.6.1
+ultralytics>=8.3
+fastapi>=0.110
+uvicorn[standard]>=0.29

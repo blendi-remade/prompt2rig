@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prompt2Rig</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+    "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #0e0f11; --panel: #16181b; --panel2: #1d2024; --line: #2a2e33; --text: #e7e9ec; --dim: #8b929b;
+    --accent: #7cf29a; --accent2: #5ab8ff; --warn: #ffb454; --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 1fr 132px; height: 100vh; }
+  aside { grid-row: 1 / 3; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 15px; margin: 0; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+  h1 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
+  .pill.ok { color: var(--accent); border-color: #2f5b3b; } .pill.bad { color: var(--err); border-color: #5b2f2f; } .pill.busy { color: var(--warn); border-color: #5b4a2f; }
+  textarea { width: 100%; min-height: 74px; resize: vertical; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; outline: none; }
+  textarea:focus { border-color: var(--accent2); }
+  .go { width: 100%; padding: 10px; border: 0; border-radius: 8px; background: var(--accent); color: #07140b; font-weight: 650; cursor: pointer; }
+  .go:disabled { opacity: .5; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11.5px; padding: 4px 9px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); cursor: pointer; }
+  .chip:hover { border-color: var(--accent2); }
+  .section { display: flex; flex-direction: column; gap: 8px; }
+  .section > label.title { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .row select, .row input[type=number] { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  .row input[type=range] { width: 130px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  .check small { display: block; color: var(--dim); }
+  .performer { display: flex; gap: 10px; align-items: center; }
+  .performer img { width: 120px; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); }
+  .btn { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; }
+  .btn:hover { border-color: var(--accent2); }
+  .log { font: 11.5px/1.45 ui-monospace, Consolas, monospace; color: var(--dim); background: #0b0c0e; border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
+  .log .ok { color: var(--accent); } .log .err { color: var(--err); } .log .hq { color: var(--accent2); }
+
+  main { position: relative; overflow: hidden; }
+  #stage { position: absolute; inset: 0; }
+  #stage canvas { display: block; }
+  .vidwrap { position: absolute; top: 14px; left: 14px; width: min(38%, 520px); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #000; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .vidwrap video, .vidwrap canvas { display: block; width: 100%; }
+  .vidwrap canvas { position: absolute; inset: 0; height: 100%; pointer-events: none; }
+  .vidwrap .empty { aspect-ratio: 16/9; display: grid; place-items: center; color: var(--dim); }
+  .hud { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
+  .hud .tag { font: 12px ui-monospace, Consolas, monospace; background: rgba(14,15,17,.75); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  .hud .src-live { color: var(--warn); } .hud .src-hq { color: var(--accent); }
+  .banner { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(14,15,17,.8); border: 1px solid var(--line); border-radius: 99px; padding: 6px 14px; font-size: 13px; display: none; }
+  .banner.on { display: block; }
+
+  footer { background: var(--panel); border-top: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; display: flex; gap: 10px; padding: 10px 12px; }
+  .take { flex: 0 0 230px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .take.playing { border-color: var(--accent); }
+  .take .p { font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 33px; }
+  .take .meta { display: flex; gap: 5px; flex-wrap: wrap; }
+  .take .actions { display: flex; gap: 6px; margin-top: auto; }
+  .take .actions .btn { padding: 3px 8px; font-size: 12px; }
+  .spin { display: inline-block; width: 9px; height: 9px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s .8s linear infinite; vertical-align: -1px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1><span class="dot"></span> Prompt2Rig</h1>
+    <div class="pills">
+      <span class="pill" id="pill-rig">character…</span>
+      <span class="pill" id="pill-pose">pose model…</span>
+      <span class="pill" id="pill-hq">HQ worker…</span>
+    </div>
+
+    <div class="section">
+      <textarea id="prompt" placeholder="Describe a motion… e.g. does an energetic hip hop dance">does an energetic hip hop dance with big arm movements</textarea>
+      <button class="go" id="go">Generate ▸ <span style="opacity:.6;font-weight:400">(Ctrl+Enter)</span></button>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="section">
+      <label class="title">Performer (first frame)</label>
+      <div class="performer">
+        <img id="performer-img" alt="" />
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn" id="performer-new">New performer</button>
+          <span style="color:var(--dim);font-size:11.5px">flux/schnell → image-to-video keeps framing &amp; body consistent</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <label class="title">Generation</label>
+      <label class="check"><input type="checkbox" id="stream" /><span><b>Stream mode</b><small>One continuous performance: each clip continues from the last, plays once its HQ motion is ready, and idles between prompts.</small></span></label>
+      <div class="row"><span>Source</span>
+        <select id="source"><option value="performer">Performer → video</option><option value="t2v">Text → video</option></select></div>
+      <label class="check"><input type="checkbox" id="chain" /><span>Continue from last frame<small>Each clip starts where the previous ended — a continuous stream you direct with prompts.</small></span></label>
+      <div class="row"><span>Duration <b id="duration-v"></b></span><input type="range" id="duration" min="2" max="10" step="1" /></div>
+      <div class="row"><span>Resolution</span><select id="resolution"><option>480P</option><option>768P</option><option>1080P</option></select></div>
+    </div>
+
+    <div class="section">
+      <label class="title">Motion</label>
+      <label class="check"><input type="checkbox" id="hq" /><span>HQ pass (GVHMR on local GPU)<small>Live MediaPipe preview immediately, swaps to GVHMR motion when ready.</small></span></label>
+      <label class="check"><input type="checkbox" id="waitHq" /><span>Hold playback until HQ is ready<small>Cleanest look; adds a few seconds before each clip.</small></span></label>
+      <label class="check"><input type="checkbox" id="rootMotion" /><span>Root motion</span></label>
+      <div class="row"><span>Live pose model</span><select id="poseModel"><option value="heavy">Heavy</option><option value="full">Full</option></select></div>
+      <div class="row"><span>Live smoothing</span><input type="range" id="smoothing" min="0" max="1" step="0.05" /></div>
+      <label class="check"><input type="checkbox" id="showSkel" /><span>Skeleton overlay on video</span></label>
+    </div>
+
+    <div class="section">
+      <label class="title">Files</label>
+      <div class="row">
+        <button class="btn" id="btn-char">Load character…</button>
+        <button class="btn" id="btn-vid">Use a video file…</button>
+      </div>
+      <input type="file" id="file-char" accept=".glb,.gltf,.fbx" />
+      <input type="file" id="file-vid" accept="video/*" />
+    </div>
+
+    <div class="section" style="flex:1">
+      <label class="title">Log</label>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="stage"></div>
+    <div class="vidwrap" id="vidwrap">
+      <div class="empty" id="vid-empty">Generated video appears here</div>
+      <video id="video" muted playsinline crossorigin="anonymous" style="display:none"></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div class="hud">
+      <div class="tag" id="hud-src">—</div>
+      <div class="tag" id="hud-time" style="color:var(--dim)"></div>
+    </div>
+    <div class="banner" id="banner"></div>
+  </main>
+
+  <footer id="takes"></footer>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
