@@ -19,7 +19,9 @@ const W = Number(args.width || 2560), H = Number(args.height || 1440), FPS = 30;
 const OUT = path.resolve(args.out || 'captures');
 const URL = args.url || 'http://localhost:5177';
 const CHROME = args.chrome || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const prompts = fs.readFileSync(args.prompts || 'tools/prompts.txt', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+// Lines may end in "| <seconds>" to set that clip's duration (FLUX 3 Max: 5–20s).
+const prompts = fs.readFileSync(args.prompts || 'tools/prompts.txt', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+  .map((l) => { const [p, d] = l.split('|').map((x) => x.trim()); return { prompt: p, duration: d ? Number(d) : Number(args.duration || 5) }; });
 
 // App settings for the recording: FLUX 3 Max, portrait, GVHMR only (hold until HQ), static camera.
 const settings = {
@@ -51,11 +53,11 @@ try {
     && document.querySelector('#pill-pose').classList.contains('ok'), { timeout: 120000 });
   log(`app ready (${settings.character}, ${settings.videoModel}); ${prompts.length} prompts`);
 
-  for (const [i, prompt] of prompts.entries()) {
+  for (const [i, { prompt, duration: seconds }] of prompts.entries()) {
     const name = `${String(i + 1).padStart(2, '0')}_${slug(prompt)}`;
-    log(`#${i + 1} generating: ${prompt}`);
+    log(`#${i + 1} generating (${seconds}s): ${prompt}`);
     await page.evaluate((p) => { document.querySelector('#prompt').value = p; }, prompt);
-    const id = await page.evaluate((p) => window.p2r.submit(p), prompt);
+    const id = await page.evaluate((p, d) => window.p2r.submit(p, { duration: d }), prompt, seconds);
     const take = await page.waitForFunction((tid) => {
       const t = window.p2r.take(tid);
       return t && (t.status === 'error' || t.hq === 'error' || t.hq === 'done') && t;

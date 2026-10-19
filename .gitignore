@@ -23,3 +23,4 @@ renders/
 # frame-exact app recordings (tools/capture.mjs)
 captures/
 node_modules/
+captures_xbot/

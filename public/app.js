@@ -660,7 +660,10 @@ $('#file-vid').onchange = (e) => {
 window.p2r = {
   get current() { return current; }, get rig() { return rig; }, takes, video, stats,
   // ---- frame-exact capture: used by tools/capture.mjs ----
-  submit(prompt) { submitPrompt(prompt); return takes[takes.length - 1].id; },
+  submit(prompt, { duration } = {}) {
+    if (duration) { settings.duration = duration; $('#duration').value = duration; $('#duration-v').textContent = duration + 's'; }
+    submitPrompt(prompt); return takes[takes.length - 1].id;
+  },
   take(id) { const t = takes.find((x) => x.id === id); return t && { id: t.id, status: t.status, hq: t.hqStatus, url: t.videoUrl, duration: t.hq?.duration ?? null }; },
   async beginCapture(id) {
     const t = takes.find((x) => x.id === id);

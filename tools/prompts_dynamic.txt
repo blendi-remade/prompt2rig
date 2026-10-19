@@ -1,0 +1,24 @@
+# Longer, more dynamic routines. "| N" = clip length in seconds (FLUX 3 Max: 5–20).
+# Still facing the camera and roughly in place — just bigger, faster, and longer.
+does an explosive hip hop routine with jumps, kicks and big arm swings | 10
+does a fast martial arts combo: two punches, a front kick, then a high roundhouse kick | 8
+does a Michael Jackson style dance with sharp kicks, hip thrusts and a dramatic final pose | 10
+jumps rope very fast with an imaginary rope, then does high double jumps | 8
+does star jumps, then a big tuck jump with knees to the chest | 8
+does an energetic cheerleading routine with high kicks and sharp arm motions | 10
+does a sword fighting routine with an imaginary sword: big slashes, thrusts and a lunge | 10
+does a celebratory touchdown dance with a ball spike and a shimmy | 8
+does an Irish step dance with fast kicking footwork and arms held straight down | 8
+does a karate sequence: front kick, side kick, then a jumping punch | 8
+does boxing footwork, bobbing and weaving, then a fast flurry of hooks and uppercuts | 10
+does a high-energy aerobics routine with punches, side steps and knee lifts | 10
+does a haka-style war dance with stomps, chest slaps and wide powerful stances | 10
+plays a wild air guitar solo, jumping and headbanging | 8
+does a breakdance toprock with quick crossing footwork, staying on their feet | 8
+does a ballet sequence: plié, relevé, then an arabesque with one leg extended back | 10
+does a powerful kung fu form with deep horse stances, palm strikes and a crane kick | 10
+does a squat kick dance, alternating legs kicking out from a deep squat | 8
+does a superhero power-up: crouches low, then explodes upward with fists raised | 8
+dances the Charleston with swinging arms and kicking feet | 8
+does a Matrix-style slow-motion dodge, leaning far back | 8
+does a gymnastics finish: arms up, a jump with a half turn, then a big salute | 8
