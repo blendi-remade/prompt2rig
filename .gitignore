@@ -15,3 +15,7 @@ vendor/
 node_modules/
 __pycache__/
 .DS_Store
+
+# exported takes and Blender renders
+takes/
+renders/

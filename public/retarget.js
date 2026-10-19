@@ -149,6 +149,20 @@ export class Rig {
     this.setHipsWorld(_v2.fromArray(s.p));
   }
 
+  /**
+   * Mirror another Mixamo rig's current pose (crowd mode): each bone gets the same world-space
+   * rotation relative to its own rest pose; the hips path is scaled by leg length.
+   */
+  copyPoseFrom(src) {
+    const d = src.hipsWorld(_v2).sub(src.rest.Hips.wp).multiplyScalar(this.legLength / src.legLength);
+    for (const name of this.order) {
+      if (!src.bones[name]) continue;
+      const delta = src.bones[name].getWorldQuaternion(new Q()).multiply(_q2.copy(src.rest[name].wq).invert());
+      this.setWorldQuat(name, delta.multiply(this.rest[name].wq));
+    }
+    this.setHipsWorld(this.rest.Hips.wp.clone().add(d));
+  }
+
   // ---- source A: MediaPipe world landmarks -----------------------------------
   /**
    * `lm` = 33 THREE.Vector3 in three.js space (x = subject's left, y up, z toward camera),

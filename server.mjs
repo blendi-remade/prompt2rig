@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
+const TAKES = path.join(ROOT, 'takes'); // exported takes for tools/render_blender.py
 
 // --- .env -------------------------------------------------------------------
 const envFile = path.join(ROOT, '.env');
@@ -110,6 +111,19 @@ const server = http.createServer(async (req, res) => {
       });
       console.log(`[image] in ${out._elapsed.toFixed(1)}s`);
       return send(res, 200, { image_url: out.images?.[0]?.url, elapsed: out._elapsed });
+    }
+
+    // Save an exported take (GLB body, ?name=…&source=<video url>) into ./takes for the Blender renderer.
+    if (req.method === 'POST' && url.pathname === '/api/takes') {
+      const name = (url.searchParams.get('name') || 'take').replace(/[^a-z0-9_-]+/gi, '_').slice(0, 80);
+      const chunks = []; let size = 0;
+      for await (const c of req) { size += c.length; if (size > 100e6) throw Object.assign(new Error('take too large'), { status: 413 }); chunks.push(c); }
+      fs.mkdirSync(TAKES, { recursive: true });
+      fs.writeFileSync(path.join(TAKES, name + '.glb'), Buffer.concat(chunks));
+      const meta = { name, source: url.searchParams.get('source') || null, prompt: url.searchParams.get('prompt') || '', saved: new Date().toISOString() };
+      fs.writeFileSync(path.join(TAKES, name + '.json'), JSON.stringify(meta, null, 2));
+      console.log(`[take] saved takes/${name}.glb`);
+      return send(res, 200, { path: `takes/${name}.glb` });
     }
 
     // HQ pass: forward to the local GVHMR worker (hq/worker.py).

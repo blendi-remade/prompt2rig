@@ -1,11 +1,11 @@
 // Prompt2Rig — prompt → H3 Max Turbo video → live pose (MediaPipe) → Mixamo rig,
 // with an optional GVHMR "HQ" pass on the local GPU that swaps in when ready.
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { FilesetResolver, PoseLandmarker, DrawingUtils } from '@mediapipe/tasks-vision';
+import { createStage } from './stage.js';
 import { Rig, OneEuro, Track, trackToClip, blendSnapshots, smplGlobals, aaToQuat } from './retarget.js';
 
 const $ = (s) => document.querySelector(s);
@@ -26,15 +26,20 @@ const PERFORMER_PROMPT =
   'with empty space above the head and below the feet, the person is centered. Plain seamless ' +
   'light-grey studio backdrop and floor, flat even soft lighting, sharp focus, 35mm photo.';
 
+// Presets chosen to retarget cleanly: facing the camera, limbs clearly separated from the body.
+// Avoid flips, spins, floor work and arms crossing/hiding behind the torso — pose estimators
+// lose track of which limb is which, and the error shows on the rig.
 const PRESETS = [
-  'does an energetic hip hop dance with big arm movements',
-  'throws a fast boxing combo of jabs, hooks and an uppercut',
+  'does an energetic hip hop dance with wide, open arm movements',
+  'throws boxing jabs and hooks toward the camera',
   'does jumping jacks',
-  'walks in a small circle and waves at the camera',
-  'does a shuffling zombie walk with arms stretched forward',
-  'celebrates a victory, jumping and pumping both fists',
-  'does a slow tai chi sequence',
-  'does a high spinning kick',
+  'mimes a full golf swing',
+  'shoots an imaginary basketball jump shot',
+  'celebrates a victory, jumping and pumping both fists in the air',
+  'does a stiff zombie walk in place with arms stretched forward',
+  'does a karate kata with straight punches and front kicks',
+  'waves hello with both arms, then takes a bow',
+  'does a big superhero landing pose, then stands up proudly',
 ];
 
 const IDLE_PROMPT = 'stands in place in a relaxed idle pose, breathing and gently shifting weight from foot to foot';
@@ -43,15 +48,18 @@ const MAX_IDLE_STREAK = 3;
 const chainOn = () => settings.chain || settings.stream;
 const waitOn = () => settings.hq && hqOnline && (settings.waitHq || settings.stream);
 
+// Shared staging that keeps clips easy to read for pose estimation.
+const STAGING = 'They stay roughly in place facing the camera, with both arms clearly visible and held away from the torso, no turning around, no flips. ' +
+  'Their entire body, including both feet, stays visible in frame the whole time. Static locked-off camera, no camera movement, no zoom, no cuts.';
 const videoPrompt = (action, fromImage) => fromImage
-  ? `The person ${action}. They perform the full motion while their entire body, including both feet, stays visible in frame the whole time. Static locked-off camera, no camera movement, no zoom, no cuts. Plain studio background.`
-  : `Wide full-body shot of one person wearing a plain grey t-shirt and dark pants in an empty light-grey studio. The person ${action}. Entire body including feet visible at all times. Static locked-off camera, no camera movement, no cuts.`;
+  ? `The person ${action}. ${STAGING} Plain studio background.`
+  : `Wide full-body shot of one person wearing a plain grey t-shirt and dark pants in an empty light-grey studio. The person ${action}. ${STAGING}`;
 
 // ---- settings ------------------------------------------------------------------
 const DEFAULTS = {
   stream: false, source: 'performer', chain: false, duration: 5, resolution: '480P', hq: true, waitHq: false,
   rootMotion: true, poseModel: 'heavy', smoothing: 0.5, showSkel: true, orientation: 'portrait', performerUrls: {},
-  character: 'xbot', videoModel: 'h3',
+  character: 'xbot', videoModel: 'h3', swap: false, cinematic: false,
 };
 const settings = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('p2r') || '{}') }; } catch { return { ...DEFAULTS }; } })();
 const save = () => { try { localStorage.setItem('p2r', JSON.stringify(settings)); } catch {} };
@@ -84,47 +92,18 @@ async function api(path, body) {
 }
 
 // ---- three.js stage -------------------------------------------------------------
-const stage = $('#stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-stage.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x15171a);
-scene.fog = new THREE.Fog(0x15171a, 8, 22);
-const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 100);
-camera.position.set(0.6, 1.5, 5.2);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.95, 0);
-controls.enableDamping = true;
-
-scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x1a1c20, 1.6));
-const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-sun.position.set(2.5, 5, 3.5); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 15 });
-scene.add(sun);
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2226, roughness: 1 }));
-floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-const grid = new THREE.GridHelper(60, 120, 0x3a3f46, 0x2a2e33); grid.position.y = 0.002; scene.add(grid);
-
-function resize() {
-  const { clientWidth: w, clientHeight: h } = stage;
-  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
-}
-new ResizeObserver(resize).observe(stage);
+const stage = createStage($('#stage'));
+const { scene } = stage;
+// Keep the characters centered in the part of the stage the video panel doesn't cover.
+new ResizeObserver(() => { const v = $('#vidwrap'); stage.setInset(v.offsetLeft + v.offsetWidth); }).observe($('#vidwrap'));
 
 // ---- character --------------------------------------------------------------------
 let model = null, rig = null;
 
-async function loadCharacter(src, name = 'X Bot') {
-  pill('rig', 'loading ' + name, 'busy');
+/** Load a Mixamo character: scaled to meters, facing +Z, centered with feet on y=0. */
+async function loadModel(src, name) {
   const isFbx = /\.fbx$/i.test(name);
-  const loader = isFbx ? new FBXLoader() : new GLTFLoader();
-  const obj = await loader.loadAsync(src);
+  const obj = await (isFbx ? new FBXLoader() : new GLTFLoader()).loadAsync(src);
   const root = isFbx ? obj : obj.scene;
   if (isFbx) root.scale.setScalar(0.01);         // Mixamo FBX is in centimeters
   root.updateMatrixWorld(true);
@@ -139,18 +118,61 @@ async function loadCharacter(src, name = 'X Bot') {
   root.position.y -= box.min.y;
   root.position.x -= (box.min.x + box.max.x) / 2;
   root.position.z -= (box.min.z + box.max.z) / 2;
-  root.name = 'Character';
   root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
   root.updateMatrixWorld(true);
+  return root;
+}
+
+async function loadCharacter(src, name = 'X Bot') {
+  pill('rig', 'loading ' + name, 'busy');
+  const root = await loadModel(src, name);
+  root.name = 'Character';
   const newRig = new Rig(root);
-  if (model) scene.remove(model);
-  scene.add(root); model = root; rig = newRig;
+  if (model) { scene.remove(model); stage.removeContactShadow(model); }
+  scene.add(root); stage.contactShadow(root); model = root; rig = newRig;
   // Takes store bone-order-specific data; re-bake HQ data for the new skeleton.
   for (const t of takes) { t.live = new Track(rig.order.length); t.liveDone = false; if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); }
   liveState ||= { hip0: null, baseY: null, mpp: null, scale: null };
   liveSnap = null; switchFrom = null;
   pill('rig', name, 'ok');
   log(`character: ${name} (${rig.order.length} bones, ${rig.height.toFixed(2)} m)`);
+  resetCast();
+}
+
+// ---- character swap: one character at a time, the next one takes over on every loop -------------
+// The selected character stays the hidden "driver" that takes are baked for; whichever character
+// is on stage copies its pose each frame, so swapping never needs a re-bake.
+const cast = {};        // key → { model, rig } for the non-driver characters, loaded on demand
+let onStage = null;     // key of the character currently visible (null = the driver itself)
+
+function resetCast() {
+  for (const k of Object.keys(cast)) { scene.remove(cast[k].model); stage.removeContactShadow(cast[k].model); delete cast[k]; }
+  onStage = null;
+  if (model) model.visible = true;
+}
+
+async function swapCharacter() {
+  const keys = Object.keys(CHARACTERS);
+  const shown = onStage || settings.character;
+  const next = keys[(keys.indexOf(shown) + 1) % keys.length];
+  if (next === settings.character) { showOnStage(null); return; }
+  if (!cast[next]) {
+    const m = await loadModel(CHARACTERS[next].url, CHARACTERS[next].name);
+    if (cast[next]) return;
+    m.visible = false; scene.add(m);
+    cast[next] = { model: m, rig: new Rig(m) };
+  }
+  showOnStage(next);
+}
+
+function showOnStage(key) {
+  if (onStage && cast[onStage]) { cast[onStage].model.visible = false; stage.removeContactShadow(cast[onStage].model); }
+  onStage = key;
+  model.visible = !key;
+  stage.removeContactShadow(model);
+  if (key) { cast[key].model.visible = true; stage.contactShadow(cast[key].model); }
+  else stage.contactShadow(model);
+  pill('rig', key ? CHARACTERS[key].name : (CHARACTERS[settings.character]?.name || 'character'), 'ok');
 }
 
 // ---- MediaPipe ---------------------------------------------------------------------
@@ -432,6 +454,7 @@ function playTake(take) {
 }
 
 video.addEventListener('ended', () => {
+  if (settings.swap && rig) swapCharacter().catch((e) => log('swap failed: ' + e.message, 'err'));
   if (current && !current.liveDone) {
     current.liveDone = current.live.length > 3;
     log(`#${current.id} live pass: ${current.live.length} frames`);
@@ -518,7 +541,6 @@ function solveLive(res, t) {
 
 // ---- render loop ----------------------------------------------------------------------------
 const bufA = { q: null, p: new Float32Array(3) }, bufB = { q: null, p: new Float32Array(3) }, bufC = { q: null, p: new Float32Array(3) };
-const camTarget = new THREE.Vector3(0, 0.95, 0);
 
 let lastRaf = 0;
 function frame() {
@@ -555,13 +577,13 @@ function tick() {
     const hud = $('#hud-src'); hud.textContent = src; hud.className = 'tag ' + (hq ? 'src-hq' : 'src-live');
     const buf = settings.stream ? `  ·  ready ${queue.length}  gen ${genBusy}  hq ${takes.filter((x) => x.hqStatus === 'running').length}${held ? '  ·  HOLD' : ''}` : '';
     $('#hud-time').textContent = `#${current.id}  ${t.toFixed(2)}s${buf}`;
-    // Ease the orbit target toward the character.
-    camTarget.set(lastRenderedHips.x, 0.95, lastRenderedHips.z);
-    const delta = camTarget.clone().sub(controls.target).multiplyScalar(0.04);
-    controls.target.add(delta); camera.position.add(delta);
   }
-  controls.update();
-  renderer.render(scene, camera);
+  if (rig) {
+    const shown = onStage ? cast[onStage].rig : rig;
+    if (shown !== rig) shown.copyPoseFrom(rig);
+    stage.placeContactShadow(shown.model, shown.hipsWorld(), shown.floorY, shown.height);
+  }
+  stage.update(rig ? lastRenderedHips : null);
 }
 
 // ---- export --------------------------------------------------------------------------------
@@ -574,6 +596,9 @@ async function exportTake(take) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
   a.download = name + '.glb'; a.click();
+  // Also keep a copy in ./takes (with the source clip URL) for tools/render_blender.py.
+  const q = new URLSearchParams({ name, prompt: take.prompt, ...(take.videoUrl?.startsWith('http') ? { source: take.videoUrl } : {}) });
+  fetch('/api/takes?' + q, { method: 'POST', body: glb }).then((r) => r.ok && log(`saved takes/${name}.glb`, 'ok')).catch(() => {});
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   log(`exported ${name}.glb`, 'ok');
 }
@@ -587,6 +612,8 @@ bindSetting('videoModel', 'value', (m) => {
   const d = $('#duration'); d.min = m === 'flux3' ? 5 : 2;  // FLUX 3 Max: 5–20s
   if (settings.duration < d.min) { settings.duration = Number(d.min); d.value = d.min; $('#duration-v').textContent = d.min + 's'; save(); }
 });
+bindSetting('swap', 'checked', (on) => { if (!on && model) showOnStage(null); });
+bindSetting('cinematic', 'checked', (on) => stage.setCinematic(on));
 bindSetting('character', 'value', (c) => { if (rig && CHARACTERS[c]) loadCharacter(CHARACTERS[c].url, CHARACTERS[c].name).catch((e) => log('character failed: ' + e.message, 'err')); });
 bindSetting('duration', 'value', (v) => ($('#duration-v').textContent = v + 's'));
 bindSetting('hq', 'checked'); bindSetting('waitHq', 'checked'); bindSetting('rootMotion', 'checked');
@@ -634,7 +661,6 @@ window.p2r = {
 };
 
 // ---- boot --------------------------------------------------------------------------------------
-resize();
 frame();
 const startChar = CHARACTERS[settings.character] || CHARACTERS.xbot;
 loadCharacter(startChar.url, startChar.name).catch((e) => { log('character failed: ' + e.message, 'err'); pill('rig', 'character failed', 'bad'); });

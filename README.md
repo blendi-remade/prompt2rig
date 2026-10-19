@@ -28,7 +28,7 @@ flowchart LR
 
 The live pass hides the wait; the HQ pass is the real result. GVHMR sees the whole clip at once, outputs joint *rotations* on a fixed-proportion body, and recovers a gravity-aware root path — so there's no jitter, limb stretching, or twisted forearms.
 
-![App UI — generated clip with pose overlay, retargeted character, and take history](docs/app.png)
+![App UI — generated clip with pose overlay, retargeted character, and take history](docs/app.jpg)
 
 ## Quick start
 
@@ -57,10 +57,23 @@ hq\.venv\Scripts\python hq\worker.py    # → 127.0.0.1:5178, loads once and sta
 - **Generate** a prompt or click a preset. By default every clip starts from the same flux-generated *performer* (one person, full body, plain backdrop, static camera — ideal pose-estimation input).
 - **Video model** — *H3 Max Turbo* for the snappiest loop and Stream mode; *FLUX 3 Max* for more realistic motion (best for single takes — at ~9s per 5s clip it can't keep a chained stream fed yet).
 - **Character** — X Bot, Michelle or Soldier (textured Mixamo rigs from the three.js examples), or **Load Mixamo file…** for any Mixamo `.fbx`/`.glb` (download from [mixamo.com](https://www.mixamo.com), T-pose).
+- **Swap character every loop** — X Bot → Michelle → Soldier, cutting on each loop (or each new clip in Stream mode). The motion lives on one hidden driver rig; the character on stage copies its pose, so swapping is instant.
+- **Cinematic camera** — slow arc and push-in around the performer on a studio stage (environment lighting, warm key + cool rim, soft reflective floor, contact shadows). Drag to take over; it resumes after a few seconds.
 - **Orientation** — portrait 9:16 (default) or landscape 16:9. Portrait gives the performer ~70% more pixels of height at 480P, which helps pose estimation.
 - **Stream mode** — one continuous performance: each clip continues from the previous clip's last frame, plays once its HQ motion is ready while the next one generates, and short idle clips fill gaps between prompts. First motion ≈ 6s after the first prompt, continuous after that.
-- **⬇ GLB** on any take exports the skinned character with the animation clip (Blender, Unity, three.js).
+- **⬇ GLB** on any take exports the skinned character with the animation clip (Blender, Unity, three.js), and keeps a copy plus the source-clip URL in `takes/`.
+- **Prompts that retarget well** face the camera with limbs clear of the body — dance, boxing, golf/basketball mimes, celebrations, kata. Flips, spins, floor work and crossed or hidden arms confuse any monocular pose estimator. The presets and the prompt template steer toward this.
 - **Use a video file…** runs the live pass on your own footage.
+
+## Blender renders
+
+Turn any saved take into a polished clip — studio cyclorama, three-point lighting, slow camera arc — headlessly:
+
+```powershell
+& "C:\Program Files\Blender Foundation\Blender 5.2lender.exe" -b -P tools/render_blender.py -- takes/<take>.glb --side-by-side
+```
+
+Writes `renders/<take>.mp4` (1080×1920 by default, `--res 1920x1080` for landscape) and, with `--side-by-side`, `renders/<take>_compare.mp4` with the generated source clip next to the render. Pass several `.glb` files to place characters side by side; `--preview` renders a quick low-res draft.
 
 ## Project layout
 
@@ -68,7 +81,9 @@ hq\.venv\Scripts\python hq\worker.py    # → 127.0.0.1:5178, loads once and sta
 |---|---|
 | `server.mjs` | zero-dependency server; proxies fal (key stays server-side) and the HQ worker |
 | `public/app.js` | UI, generation queue, live pose loop, playback & blending, stream mode, GLB export |
-| `public/retarget.js` | Mixamo rig wrapper: MediaPipe landmarks → bones, SMPL rotations → bones, grounding |
+| `public/stage.js` | studio stage: lighting, reflective floor, contact shadows, cinematic camera |
+| `public/retarget.js` | Mixamo rig wrapper: MediaPipe landmarks → bones, SMPL rotations → bones, rig-to-rig pose copy, grounding |
+| `tools/render_blender.py` | headless Blender (5.x) renderer for exported takes |
 | `hq/worker.py` | FastAPI worker around the `gvhmr` package, tuned for single-person generated clips |
 
 <details>
