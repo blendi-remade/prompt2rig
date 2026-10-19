@@ -170,6 +170,11 @@ def warmup() -> None:
         shutil.rmtree(CACHE / "_warmup", ignore_errors=True)  # cached stages would skip the warm-up
         result, _ = recover(clip, CACHE / "_warmup")
         leg_length(result.smpl_params_world)
+        if DETECTOR == "fast":  # first YOLO call per input shape is slow: cover both orientations
+            det = FastSingleDetector.get()
+            for h, w in ((480, 832), (832, 480), (768, 1360), (1360, 768)):
+                for n in (det.batch, 27):
+                    det.yolo.predict([np.zeros((h, w, 3), np.uint8)] * n, classes=[0], half=True, device=0, verbose=False)
         log(f"warmup done in {time.perf_counter() - t0:.1f}s")
     except Exception as e:  # noqa: BLE001
         log(f"warmup failed: {e}")

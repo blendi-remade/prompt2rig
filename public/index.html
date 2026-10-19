@@ -44,6 +44,7 @@
   .check small { display: block; color: var(--dim); }
   .performer { display: flex; gap: 10px; align-items: center; }
   .performer img { width: 120px; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); }
+  .performer img.portrait { width: 62px; aspect-ratio: 9/16; }
   .btn { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); cursor: pointer; }
   .btn:hover { border-color: var(--accent2); }
   .log { font: 11.5px/1.45 ui-monospace, Consolas, monospace; color: var(--dim); background: #0b0c0e; border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
@@ -56,6 +57,8 @@
   .vidwrap video, .vidwrap canvas { display: block; width: 100%; }
   .vidwrap canvas { position: absolute; inset: 0; height: 100%; pointer-events: none; }
   .vidwrap .empty { aspect-ratio: 16/9; display: grid; place-items: center; color: var(--dim); }
+  .vidwrap.portrait { width: auto; height: min(62%, 640px); aspect-ratio: 9/16; }
+  .vidwrap.portrait video { width: 100%; height: 100%; object-fit: contain; }
   .hud { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
   .hud .tag { font: 12px ui-monospace, Consolas, monospace; background: rgba(14,15,17,.75); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
   .hud .src-live { color: var(--warn); } .hud .src-hq { color: var(--accent); }
@@ -104,6 +107,8 @@
     <div class="section">
       <label class="title">Generation</label>
       <label class="check"><input type="checkbox" id="stream" /><span><b>Stream mode</b><small>One continuous performance: each clip continues from the last, plays once its HQ motion is ready, and idles between prompts.</small></span></label>
+      <div class="row"><span>Orientation</span>
+        <select id="orientation"><option value="portrait">Portrait 9:16</option><option value="landscape">Landscape 16:9</option></select></div>
       <div class="row"><span>Source</span>
         <select id="source"><option value="performer">Performer → video</option><option value="t2v">Text → video</option></select></div>
       <label class="check"><input type="checkbox" id="chain" /><span>Continue from last frame<small>Each clip starts where the previous ended — a continuous stream you direct with prompts.</small></span></label>

@@ -16,7 +16,7 @@ const MP_MODEL = (v) => `https://storage.googleapis.com/mediapipe-models/pose_la
 const PERFORMER_PROMPT =
   'Full-body photograph of one young adult standing in a relaxed neutral pose facing the camera, arms relaxed at the sides, ' +
   'wearing a fitted plain light-grey t-shirt, black slim pants and white sneakers. The whole body is visible from head to feet ' +
-  'with generous empty space around, the person is centered and occupies about half of the frame height. Plain seamless ' +
+  'with empty space above the head and below the feet, the person is centered. Plain seamless ' +
   'light-grey studio backdrop and floor, flat even soft lighting, sharp focus, 35mm photo.';
 
 const PRESETS = [
@@ -43,7 +43,7 @@ const videoPrompt = (action, fromImage) => fromImage
 // ---- settings ------------------------------------------------------------------
 const DEFAULTS = {
   stream: false, source: 'performer', chain: false, duration: 5, resolution: '480P', hq: true, waitHq: false,
-  rootMotion: true, poseModel: 'heavy', smoothing: 0.5, showSkel: true, performerUrl: null,
+  rootMotion: true, poseModel: 'heavy', smoothing: 0.5, showSkel: true, orientation: 'portrait', performerUrls: {},
 };
 const settings = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('p2r') || '{}') }; } catch { return { ...DEFAULTS }; } })();
 const save = () => { try { localStorage.setItem('p2r', JSON.stringify(settings)); } catch {} };
@@ -225,12 +225,13 @@ function maybeIdle() {
 }
 
 async function ensurePerformer(force = false) {
-  if (settings.performerUrl && !force) return settings.performerUrl;
+  const o = settings.orientation;
+  if (settings.performerUrls[o] && !force) return settings.performerUrls[o];
   banner('Creating performer…');
   const t0 = performance.now();
-  const r = await api('/api/image', { prompt: PERFORMER_PROMPT });
-  settings.performerUrl = r.image_url; save();
-  $('#performer-img').src = r.image_url;
+  const r = await api('/api/image', { prompt: PERFORMER_PROMPT, image_size: o === 'portrait' ? 'portrait_16_9' : 'landscape_16_9' });
+  settings.performerUrls[o] = r.image_url; save();
+  showPerformer();
   log(`performer image in ${((performance.now() - t0) / 1000).toFixed(1)}s`, 'ok');
   banner('');
   return r.image_url;
@@ -249,7 +250,7 @@ async function generate(take) {
     log(`#${take.id} → H3 Max Turbo (${from}, ${settings.duration}s ${settings.resolution})`);
     const r = await api('/api/video', {
       prompt: videoPrompt(take.prompt, !!image_url), image_url,
-      duration: settings.duration, resolution: settings.resolution, aspect_ratio: '16:9',
+      duration: settings.duration, resolution: settings.resolution, aspect_ratio: settings.orientation === 'portrait' ? '9:16' : '16:9',
     });
     take.videoUrl = r.video_url; take.status = 'ready';
     take.timings.gen = (performance.now() - t0) / 1000;
@@ -406,6 +407,7 @@ function playTake(take) {
   $('#vid-empty').style.display = 'none';
   video.style.display = 'block';
   video.src = take.videoUrl;
+  video.onloadedmetadata = () => $('#vidwrap').classList.toggle('portrait', video.videoHeight > video.videoWidth);
   lastDetectT = -1;
   video.play().catch(() => {});
   renderTakes();
@@ -579,7 +581,13 @@ for (const p of PRESETS) {
 $('#go').onclick = () => submitPrompt($('#prompt').value);
 $('#prompt').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitPrompt($('#prompt').value); } });
 $('#performer-new').onclick = () => ensurePerformer(true).catch((e) => { banner(''); log('performer failed: ' + e.message, 'err'); });
-if (settings.performerUrl) $('#performer-img').src = settings.performerUrl;
+function showPerformer() {
+  const img = $('#performer-img'), url = settings.performerUrls[settings.orientation];
+  img.classList.toggle('portrait', settings.orientation === 'portrait');
+  if (url) img.src = url; else img.removeAttribute('src');
+}
+if (settings.performerUrl) { settings.performerUrls.landscape ||= settings.performerUrl; delete settings.performerUrl; save(); }
+bindSetting('orientation', 'value', showPerformer);
 
 $('#btn-char').onclick = () => $('#file-char').click();
 $('#file-char').onchange = (e) => {

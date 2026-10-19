@@ -54,6 +54,7 @@ hq\.venv\Scripts\python hq\worker.py    # → 127.0.0.1:5178, loads once and sta
 ## Using it
 
 - **Generate** a prompt or click a preset. By default every clip starts from the same flux-generated *performer* (one person, full body, plain backdrop, static camera — ideal pose-estimation input).
+- **Orientation** — portrait 9:16 (default) or landscape 16:9. Portrait gives the performer ~70% more pixels of height at 480P, which helps pose estimation.
 - **Stream mode** — one continuous performance: each clip continues from the previous clip's last frame, plays once its HQ motion is ready while the next one generates, and short idle clips fill gaps between prompts. First motion ≈ 6s after the first prompt, continuous after that.
 - **⬇ GLB** on any take exports the skinned character with the animation clip (Blender, Unity, three.js).
 - **Load character…** swaps in any Mixamo-rigged `.glb`/`.fbx`; **Use a video file…** runs the live pass on your own footage.
