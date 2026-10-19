@@ -19,6 +19,13 @@
     --accent: #7cf29a; --accent2: #5ab8ff; --warn: #ffb454; --err: #ff6b6b;
   }
   * { box-sizing: border-box; }
+  :root { color-scheme: dark; }
+  /* Thin dark scrollbars that match the panels */
+  * { scrollbar-width: thin; scrollbar-color: #3a3f46 transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3a3f46; border-radius: 8px; border: 2px solid var(--panel); }
+  ::-webkit-scrollbar-thumb:hover { background: #4b525b; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
   button, input, select, textarea { font: inherit; color: inherit; }
   .app { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 1fr 132px; height: 100vh; }
