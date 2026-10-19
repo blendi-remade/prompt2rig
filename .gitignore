@@ -19,3 +19,7 @@ __pycache__/
 # exported takes and Blender renders
 takes/
 renders/
+
+# frame-exact app recordings (tools/capture.mjs)
+captures/
+node_modules/

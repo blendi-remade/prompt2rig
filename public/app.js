@@ -406,6 +406,7 @@ function setSmoothing(s) {
 let held = false; // stream mode: clip ended, nothing ready yet → hold the last pose
 function enqueue(take) {
   queue.push(take);
+  if (capturing) return; // the capture script decides what's on screen
   // Switch right away unless the current clip is still on its first (live) pass,
   // or we're chaining (then the next clip continues from this one's last frame).
   if (!current || held || (current.liveDone && !chainOn())) playNext();
@@ -543,13 +544,14 @@ function solveLive(res, t) {
 const bufA = { q: null, p: new Float32Array(3) }, bufB = { q: null, p: new Float32Array(3) }, bufC = { q: null, p: new Float32Array(3) };
 
 let lastRaf = 0;
+let capturing = false; // frame-exact capture (tools/capture.mjs) drives tick() itself
 function frame() {
   requestAnimationFrame(frame);
   lastRaf = performance.now();
-  tick();
+  if (!capturing) tick();
 }
 // Browsers pause rAF in hidden/occluded views; keep pose + playback running from a timer then.
-setInterval(() => { if (performance.now() - lastRaf > 100) tick(); }, 33);
+setInterval(() => { if (!capturing && performance.now() - lastRaf > 100) tick(); }, 33);
 
 function tick() {
   detectIfNewFrame();
@@ -657,6 +659,30 @@ $('#file-vid').onchange = (e) => {
 // Debug handle for the console.
 window.p2r = {
   get current() { return current; }, get rig() { return rig; }, takes, video, stats,
+  // ---- frame-exact capture: used by tools/capture.mjs ----
+  submit(prompt) { submitPrompt(prompt); return takes[takes.length - 1].id; },
+  take(id) { const t = takes.find((x) => x.id === id); return t && { id: t.id, status: t.status, hq: t.hqStatus, url: t.videoUrl, duration: t.hq?.duration ?? null }; },
+  async beginCapture(id) {
+    const t = takes.find((x) => x.id === id);
+    if (!t?.hq) throw new Error('take has no HQ motion');
+    capturing = true; video.loop = false;
+    if (current !== t) playTake(t);
+    video.pause();
+    await new Promise((r) => (video.readyState >= 2 ? r() : video.addEventListener('loadeddata', r, { once: true })));
+    renderTakes();
+    return { duration: video.duration, frames: Math.floor(video.duration * 30) };
+  },
+  /** Show exactly media time t: seek, pose (GVHMR), overlay, camera, render. */
+  async renderAt(t) {
+    video.pause();
+    if (Math.abs(video.currentTime - t) > 1e-4) {
+      const seeked = new Promise((r) => video.addEventListener('seeked', r, { once: true }));
+      video.currentTime = t; await seeked;
+    }
+    lastDetectT = -1; tick();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  },
+  endCapture() { capturing = false; video.play().catch(() => {}); },
   playUrl(u, hq = true) { const t = new Take('debug: ' + u.slice(-24)); t.videoUrl = u; t.status = 'ready'; takes.push(t); if (hq && hqOnline) runHQ(t); enqueue(t); return t; },
 };
 
