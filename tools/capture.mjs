@@ -20,7 +20,10 @@ const OUT = path.resolve(args.out || 'captures');
 const URL = args.url || 'http://localhost:5177';
 const CHROME = args.chrome || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 // Lines may end in "| <seconds>" to set that clip's duration (FLUX 3 Max: 5–20s).
-const prompts = fs.readFileSync(args.prompts || 'tools/prompts.txt', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+// --clip <video url> [--prompt "..."] re-captures an existing clip instead of generating from --prompts.
+// --passes N plays it N times; --zoom a-b zooms onto --zoom-bone (default RightHand) between a and b
+// seconds of the output, with --ramp seconds of ease in/out.
+const prompts = args.clip ? [{ prompt: args.prompt || 'existing clip', duration: 5, url: args.clip }] : fs.readFileSync(args.prompts || 'tools/prompts.txt', 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
   .map((l) => { const [p, d] = l.split('|').map((x) => x.trim()); return { prompt: p, duration: d ? Number(d) : Number(args.duration || 5) }; });
 
 // App settings for the recording: FLUX 3 Max, portrait, GVHMR only (hold until HQ), static camera.
@@ -48,17 +51,27 @@ const results = [];
 try {
   const page = await browser.newPage();
   page.on('pageerror', (e) => log('page error:', e.message));
-  await page.evaluateOnNewDocument((s) => localStorage.setItem('p2r', JSON.stringify(s)), settings);
+  await page.evaluateOnNewDocument((s) => { try { localStorage.setItem('p2r', JSON.stringify(s)); } catch {} }, settings); // sandboxed iframes can't
   await page.goto(URL, { waitUntil: 'networkidle2' });
   await page.waitForFunction(() => window.p2r?.rig && document.querySelector('#pill-hq').classList.contains('ok')
-    && document.querySelector('#pill-pose').classList.contains('ok'), { timeout: 120000 });
+    && document.querySelector('#pill-pose').classList.contains('ok'), { timeout: 120000 }).catch(async (e) => {
+    log('app not ready:', await page.evaluate(() => JSON.stringify({ p2r: !!window.p2r, rig: !!window.p2r?.rig,
+      pills: [...document.querySelectorAll('.pill')].slice(0, 3).map((x) => x.className + ':' + x.textContent) })).catch(() => '?'));
+    throw e;
+  });
   log(`app ready (${settings.character}, ${settings.videoModel}); ${prompts.length} prompts`);
 
-  for (const [i, { prompt, duration: seconds }] of prompts.entries()) {
+  const passes = Number(args.passes || 1);
+  const [z0, z1] = args.zoom ? String(args.zoom).split('-').map(Number) : [Infinity, -Infinity];
+  const ramp = Number(args.ramp || 1.1);
+  const zoomAt = (t) => (t < z0 || t > z1 ? 0 : Math.min(1, (t - z0) / ramp, (z1 - t) / ramp));
+  for (const [i, { prompt, duration: seconds, url: clipUrl }] of prompts.entries()) {
     const name = `${String(i + 1).padStart(2, '0')}_${slug(prompt)}`;
     log(`#${i + 1} generating (${seconds}s): ${prompt}`);
     await page.evaluate((p) => { document.querySelector('#prompt').value = p; }, prompt);
-    const id = await page.evaluate((p, d) => window.p2r.submit(p, { duration: d }), prompt, seconds);
+    const id = clipUrl
+      ? await page.evaluate((u, p) => window.p2r.playUrl(u, true, undefined, p).id, clipUrl, prompt)
+      : await page.evaluate((p, d) => window.p2r.submit(p, { duration: d }), prompt, seconds);
     const take = await page.waitForFunction((tid) => {
       const t = window.p2r.take(tid);
       return t && (t.status === 'error' || t.hq === 'error' || t.hq === 'done') && t;
@@ -72,8 +85,9 @@ try {
     const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-c:v', 'mjpeg', '-r', String(FPS), '-i', '-',
       '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file], { stdio: ['pipe', 'inherit', 'inherit'] });
     const t0 = Date.now();
-    for (let f = 0; f < frames; f++) {
-      await page.evaluate((t) => window.p2r.renderAt(t), f / FPS);
+    for (let f = 0; f < frames * passes; f++) {
+      const k = zoomAt(f / FPS);
+      await page.evaluate((t, zk, bone, tt) => window.p2r.renderAt(t, { k: zk, bone, t: tt }), (f % frames) / FPS, k, args['zoom-bone'] || 'RightHand', f / FPS);
       const jpg = await page.screenshot({ type: 'jpeg', quality: 95, optimizeForSpeed: true });
       if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
     }

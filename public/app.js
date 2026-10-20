@@ -508,7 +508,9 @@ function detectIfNewFrame() {
 }
 function liveLoopReset() { /* video looped or switched: keep filters from smearing across the jump */ worldFilter.reset(); hipFilter.reset(); }
 
+let lastPose2d = null; // latest MediaPipe pose landmarks (normalized video coords) — used by the capture zoom
 function drawOverlay(res) {
+  if (res.landmarks?.[0]) lastPose2d = res.landmarks[0];
   overlay.width = video.videoWidth; overlay.height = video.videoHeight;
   octx.clearRect(0, 0, overlay.width, overlay.height);
   if (!settings.showSkel || !res.landmarks?.[0]) return;
@@ -673,6 +675,56 @@ $('#file-vid').onchange = (e) => {
   takes.push(take); renderTakes(); enqueue(take);
 };
 
+// ---- capture zoom: glide the 3D camera onto a hand and zoom the video panel onto the same hand ----
+// k ∈ [0,1] is the zoom amount (the capture script ramps it linearly in time); t is the output time.
+// Eased with smootherstep, distance/scale interpolated in log space (constant perceived speed), the
+// camera arcs around the hand on the way in and drifts slowly while holding.
+let zoomBase = null, zoomTgt = null, zoomOrigin = null;
+const smootherstep = (x) => x * x * x * (x * (x * 6 - 15) + 10);
+function applyCaptureZoom(k, bone, t = 0) {
+  const r = onStage ? cast[onStage].rig : rig;
+  if (k <= 0.0005) {
+    if (zoomBase) { stage.setFocusLock(null); stage.camera.position.copy(zoomBase.pos); stage.controls.target.copy(zoomBase.tgt); zoomBase = null; }
+    for (const el of [video, overlay]) el.style.transform = '';
+    overlay.style.opacity = ''; zoomTgt = zoomOrigin = null;
+    return;
+  }
+  if (!zoomBase) {
+    const off = stage.camera.position.clone().sub(stage.controls.target);
+    zoomBase = { pos: stage.camera.position.clone(), tgt: stage.controls.target.clone(), dir: off.clone().normalize(), dist: off.length() };
+  }
+  const e = smootherstep(Math.min(1, Math.max(0, k)));
+  // Target: palm centre, followed smoothly so the hand stays framed while it moves.
+  const hand = r.bones[bone].getWorldPosition(new THREE.Vector3());
+  const mid = r.bones[bone.replace('Hand', 'HandMiddle2')];
+  const want = mid ? hand.lerp(mid.getWorldPosition(new THREE.Vector3()), 0.6) : hand;
+  zoomTgt = zoomTgt ? zoomTgt.lerp(want, 0.3) : want.clone();
+  const tgt = zoomBase.tgt.clone().lerp(zoomTgt, e);
+  // Direction arcs from the wide shot's to a 3/4 close-up angle, plus a slow drift while held.
+  // Nearly straight-on, like the performer's camera, so the close-up reads like the video panel.
+  const closeDir = new THREE.Vector3(bone.startsWith('Right') ? 0.06 : -0.06, 0.04, 1).normalize();
+  const qArc = new THREE.Quaternion().setFromUnitVectors(zoomBase.dir, closeDir);
+  const dir = zoomBase.dir.clone().applyQuaternion(new THREE.Quaternion().slerp(qArc, e));
+  dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.09 * Math.sin(t * 0.7) * e);
+  const dist = Math.exp(Math.log(zoomBase.dist) + (Math.log(0.52) - Math.log(zoomBase.dist)) * e);
+  stage.setFocusLock(tgt);
+  stage.camera.position.copy(tgt).addScaledVector(dir, dist);
+  stage.update(null);
+  // Video panel: same easing, zooming on the performer's matching hand (pose landmarks right 16/18/20, left 15/17/19).
+  const ids = bone.startsWith('Right') ? [16, 18, 20] : [15, 17, 19];
+  if (lastPose2d) {
+    // Wrist + knuckle landmarks, nudged past the knuckles toward the fingertips.
+    const w = lastPose2d[ids[0]], k1 = lastPose2d[ids[1]], k2 = lastPose2d[ids[2]];
+    const kx = (k1.x + k2.x) / 2, ky = (k1.y + k2.y) / 2;
+    const c = [kx + 0.6 * (kx - w.x), ky + 0.6 * (ky - w.y)];
+    zoomOrigin = zoomOrigin ? [zoomOrigin[0] + 0.3 * (c[0] - zoomOrigin[0]), zoomOrigin[1] + 0.3 * (c[1] - zoomOrigin[1])] : c;
+  }
+  const o = zoomOrigin || [0.5, 0.35];
+  const scale = Math.exp(Math.log(3.2) * e);
+  for (const el of [video, overlay]) { el.style.transformOrigin = `${o[0] * 100}% ${o[1] * 100}%`; el.style.transform = `scale(${scale})`; }
+  overlay.style.opacity = String(1 - e); // the stick figure would only clutter the close-up
+}
+
 // Debug handle for the console.
 window.p2r = {
   get current() { return current; }, get rig() { return rig; }, takes, video, stats,
@@ -702,18 +754,19 @@ window.p2r = {
     return { duration: video.duration, frames: Math.floor(video.duration * 30) };
   },
   /** Show exactly media time t: seek, pose (GVHMR), overlay, camera, render. */
-  async renderAt(t) {
+  async renderAt(t, zoom = null) {
     video.pause();
     if (Math.abs(video.currentTime - t) > 1e-4) {
       const seeked = new Promise((r) => video.addEventListener('seeked', r, { once: true }));
       video.currentTime = t; await seeked;
     }
     lastDetectT = -1; tick();
+    if (zoom) applyCaptureZoom(zoom.k, zoom.bone || 'RightHand', zoom.t || 0);
     // Two frames so the compositor has painted (with a timeout: hidden tabs don't run rAF).
     await Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise((r) => setTimeout(r, 80))]);
   },
   endCapture() { capturing = false; video.play().catch(() => {}); },
-  playUrl(u, hq = true, hands) { const t = new Take('debug: ' + u.slice(-24)); t.videoUrl = u; t.status = 'ready'; t.handsMethod = hands; takes.push(t); if (hq && hqOnline) runHQ(t); enqueue(t); return { id: t.id }; },
+  playUrl(u, hq = true, hands, prompt) { const t = new Take(prompt || 'debug: ' + u.slice(-24)); t.videoUrl = u; t.status = 'ready'; t.handsMethod = hands; takes.push(t); if (hq && hqOnline) runHQ(t); enqueue(t); return { id: t.id }; },
 };
 
 // ---- boot --------------------------------------------------------------------------------------
