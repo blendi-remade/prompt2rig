@@ -42,6 +42,7 @@ const browser = await puppeteer.launch({
   args: [`--window-size=${W},${H}`, '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist',
     '--autoplay-policy=no-user-gesture-required', '--hide-scrollbars', '--mute-audio'],
   defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
+  protocolTimeout: 900000,
 });
 const results = [];
 try {

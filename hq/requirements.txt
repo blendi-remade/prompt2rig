@@ -5,3 +5,7 @@ gvhmr==1.6.1
 ultralytics>=8.3
 fastapi>=0.110
 uvicorn[standard]>=0.29
+# finger tracking (hq/hands.py): MediaPipe Hands fallback + WiLoR deps. WiLoR-mini itself is
+# installed with --no-deps by setup.ps1 (its pins conflict with GVHMR's torch/ultralytics).
+mediapipe>=0.10
+roma

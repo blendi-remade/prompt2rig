@@ -30,3 +30,4 @@ bench/.venv/
 bench/clips/
 bench/out/
 *.task
+captures_hands/

@@ -25,6 +25,7 @@ flowchart LR
 | | fal · FLUX 3 Max (720p) | ~8–9s wall (4.5s GPU) |
 | **Live** preview — MediaPipe Pose, retargeted per frame | browser | immediate |
 | **HQ** motion — GVHMR → SMPL rotations → Mixamo | local GPU worker | ~3.5–4s (0.7–0.8× real time) |
+| **Fingers** — WiLoR hand model (MediaPipe fallback), in parallel with GVHMR | local GPU worker | +~0.3s |
 
 The live pass hides the wait; the HQ pass is the real result. GVHMR sees the whole clip at once, outputs joint *rotations* on a fixed-proportion body, and recovers a gravity-aware root path — so there's no jitter, limb stretching, or twisted forearms.
 
@@ -46,7 +47,15 @@ node server.mjs               # → http://localhost:5177  (live preview works n
 hq\setup.ps1                  # venv, CUDA PyTorch, GVHMR + ~5 GB checkpoints
 ```
 
-Then download **SMPL-X v1.1 (NPZ)** from [smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) (free registration) and put `SMPLX_NEUTRAL.npz` in `hq/body_models/smplx/`. Start the worker next to the web server:
+Then download **SMPL-X v1.1 (NPZ)** from [smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) (free registration) and put `SMPLX_NEUTRAL.npz` in `hq/body_models/smplx/`.
+
+**Finger tracking (optional):** WiLoR needs the MANO hand model — register at [mano.is.tue.mpg.de](https://mano.is.tue.mpg.de) and download *Models & Code* (`mano_v1_2.zip`), then:
+
+```powershell
+hq\.venv\Scripts\python hq\setup_hands.py $HOME\Downloads\mano_v1_2.zip   # WiLoR weights + MANO (converted for modern Python)
+```
+
+Without MANO, fingers fall back to MediaPipe Hands (less accurate depth). Start the worker next to the web server:
 
 ```powershell
 hq\.venv\Scripts\python hq\worker.py    # → 127.0.0.1:5178, loads once and stays warm
@@ -57,6 +66,7 @@ hq\.venv\Scripts\python hq\worker.py    # → 127.0.0.1:5178, loads once and sta
 - **Generate** a prompt or click a preset. By default every clip starts from the same flux-generated *performer* (one person, full body, plain backdrop, static camera — ideal pose-estimation input).
 - **Video model** — *H3 Max Turbo* for the snappiest loop and Stream mode; *FLUX 3 Max* for more realistic motion (best for single takes — at ~9s per 5s clip it can't keep a chained stream fed yet).
 - **Character** — X Bot, Michelle or Soldier (textured Mixamo rigs from the three.js examples), or **Load Mixamo file…** for any Mixamo `.fbx`/`.glb` (download from [mixamo.com](https://www.mixamo.com), T-pose).
+- **Track fingers** — the HQ pass also recovers hands: WiLoR (MANO-based) on the full-resolution clip, assigned to the body's wrists, rotated into the motion's world frame and smoothed; the rig gets palm orientation plus all 15 finger joints. Untracked hands rest in a natural curl.
 - **Swap character every loop** — X Bot → Michelle → Soldier, cutting on each loop (or each new clip in Stream mode). The motion lives on one hidden driver rig; the character on stage copies its pose, so swapping is instant.
 - **Cinematic camera** — slow arc and push-in around the performer on a studio stage (environment lighting, warm key + cool rim, soft reflective floor, contact shadows). Drag to take over; it resumes after a few seconds.
 - **Orientation** — portrait 9:16 (default) or landscape 16:9. Portrait gives the performer ~70% more pixels of height at 480P, which helps pose estimation.
@@ -83,7 +93,9 @@ Writes `renders/<take>.mp4` (1080×1920 by default, `--res 1920x1080` for landsc
 | `public/app.js` | UI, generation queue, live pose loop, playback & blending, stream mode, GLB export |
 | `public/stage.js` | studio stage: lighting, reflective floor, contact shadows, cinematic camera |
 | `public/retarget.js` | Mixamo rig wrapper: MediaPipe landmarks → bones, SMPL rotations → bones, rig-to-rig pose copy, grounding |
+| `hq/hands.py` | finger tracking: WiLoR (batched) / MediaPipe backends, wrist assignment, camera→world, smoothing |
 | `tools/render_blender.py` | headless Blender (5.x) renderer for exported takes |
+| `bench/` | hand-pose test bench: detection/jitter metrics, 2D overlays, source-vs-rig close-up reviews |
 | `hq/worker.py` | FastAPI worker around the `gvhmr` package, tuned for single-person generated clips |
 
 <details>
@@ -114,6 +126,8 @@ It runs alongside third-party components that keep their own licenses — none a
 |---|---|---|
 | [GVHMR](https://github.com/zju3dv/GVHMR) — the HQ motion pass | educational / research / non-profit only | ❌ |
 | [SMPL-X](https://smpl-x.is.tue.mpg.de/) body model | non-commercial, registration required | ❌ (separate commercial license from Meshcapade) |
+| [WiLoR](https://github.com/rolpotamias/WiLoR) — finger tracking | CC-BY-NC-ND | ❌ |
+| [MANO](https://mano.is.tue.mpg.de) hand model | non-commercial, registration required | ❌ |
 | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) — person detector in the HQ worker | AGPL-3.0 | ⚠️ copyleft, or an Ultralytics enterprise license |
 | MediaPipe · three.js | Apache-2.0 · MIT | ✅ |
 | Mixamo characters | Adobe Mixamo terms (loaded from the three.js CDN, not redistributed) | ✅ in your own projects |

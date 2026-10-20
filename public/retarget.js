@@ -45,21 +45,23 @@ const HAND_CHAINS = [
 ];
 
 /**
- * Anatomical finger limits. Middle/end joints (PIP/DIP) are hinges: keep only the curl toward the palm,
- * 0°–100°, no sideways or backward bending. Knuckles (MCP) keep their sideways spread but can't
- * hyperextend more than ~20°. Removes most single-camera depth noise from tracked fingers.
+ * Anatomical finger limits: fingers fold the way they're measured, but never backwards. A joint
+ * bending away from the palm is straightened (knuckles may hyperextend ~20°), and bends are capped
+ * (knuckle ~90°, middle/end joints ~100°). The fold plane itself is left free — real fingers don't
+ * fold exactly along the palm normal, so forcing it skews the curl.
  */
+export const HAND_LIMITS = { enabled: true, knuckle: 1.6, joint: 1.75, backKnuckle: 0.35, backJoint: 0.05 };
+
 function hinge(dir, parentDir, palm, isKnuckle) {
-  const u = palm.clone().sub(parentDir.clone().multiplyScalar(palm.dot(parentDir))).normalize(); // palm side, ⟂ parent
-  const along = dir.dot(parentDir), curl = dir.dot(u);
-  if (isKnuckle) {
-    const lateral = dir.clone().sub(parentDir.clone().multiplyScalar(along)).sub(u.clone().multiplyScalar(curl));
-    const flex = Math.min(1.6, Math.max(-0.35, Math.atan2(curl, along)));
-    return parentDir.clone().multiplyScalar(Math.cos(flex)).add(u.clone().multiplyScalar(Math.sin(flex)))
-      .add(lateral.clampLength(0, 0.45)).normalize();
-  }
-  const flex = Math.min(1.75, Math.max(0, Math.atan2(curl, along)));
-  return parentDir.clone().multiplyScalar(Math.cos(flex)).add(u.multiplyScalar(Math.sin(flex))).normalize();
+  if (!HAND_LIMITS.enabled) return dir;
+  const along = dir.dot(parentDir);
+  const perp = dir.clone().sub(parentDir.clone().multiplyScalar(along));
+  if (perp.lengthSq() < 1e-10) return dir;
+  let bend = Math.atan2(perp.length(), along);
+  const L = HAND_LIMITS;
+  if (perp.dot(palm) < 0) bend = Math.min(bend, isKnuckle ? L.backKnuckle : L.backJoint);   // bending backwards
+  bend = Math.min(bend, isKnuckle ? L.knuckle : L.joint);
+  return parentDir.clone().multiplyScalar(Math.cos(bend)).add(perp.normalize().multiplyScalar(Math.sin(bend))).normalize();
 }
 
 const FOOT_POINTS = ['LeftToe_End', 'RightToe_End', 'LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'];

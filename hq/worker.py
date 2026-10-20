@@ -173,6 +173,12 @@ def warmup() -> None:
         shutil.rmtree(CACHE / "_warmup", ignore_errors=True)  # cached stages would skip the warm-up
         result, _ = recover(clip, CACHE / "_warmup")
         leg_length(result.smpl_params_world)
+        method = hands_method(None)
+        if method:  # load + warm the hand model too (WiLoR's checkpoint is 2.5 GB)
+            import hands as handmod
+
+            frames, fps = handmod.read_frames(clip)
+            HANDS_EXEC.submit(lambda: handmod.backend(method)(frames[:32], fps)).result()
         if DETECTOR == "fast":  # first YOLO call per input shape is slow: cover both orientations
             det = FastSingleDetector.get()
             for h, w in ((480, 832), (832, 480), (470, 854), (854, 470)):  # H3 480P, FLUX 3 720p (downscaled)

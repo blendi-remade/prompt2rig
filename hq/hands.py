@@ -80,13 +80,54 @@ class WiLoRHands:
         self.pipe = WiLorHandPose3dEstimationPipeline(device=torch.device("cuda"), dtype=torch.float16, verbose=False,
                                                       wilor_pretrained_dir=str(root), WILOR_MINI_REPO_ID="__offline__")
 
-    def __call__(self, frames, fps):
-        out = []
-        for f in frames:
-            rets = self.pipe.predict(cv2.cvtColor(f, cv2.COLOR_BGR2RGB), hand_conf=0.3)
-            out.append([(r["wilor_preds"]["pred_keypoints_2d"][0].astype(np.float32),
-                         r["wilor_preds"]["pred_keypoints_3d"][0].astype(np.float32), 1.0)
-                        for r in rets if "wilor_preds" in r])
+    def __call__(self, frames, fps, det_batch=16, model_batch=32):
+        """Batched WiLoR: same weights/maths as WiLoR-mini's predict(), ~3x faster than per-frame calls."""
+        import torch
+        from wilor_mini.utils import utils as wu
+
+        P = self.pipe
+        rgb = [cv2.cvtColor(f, cv2.COLOR_BGR2RGB) for f in frames]
+        H, W = rgb[0].shape[:2]
+        # 1) hand boxes, batched and padded to a fixed batch shape
+        dets = []
+        for i in range(0, len(rgb), det_batch):
+            chunk = rgb[i:i + det_batch]
+            res = P.hand_detector(chunk + [chunk[-1]] * (det_batch - len(chunk)), conf=0.3, verbose=False, half=True)
+            for r in res[:len(chunk)]:
+                b = r.boxes
+                dets.append(list(zip(b.xyxy.cpu().numpy(), b.cls.cpu().numpy(), b.conf.cpu().numpy())))
+        # 2) 256px crops (left hands mirrored, as the model expects right hands)
+        patches, meta = [], []
+        for t, ds in enumerate(dets):
+            for box, cls, conf in sorted(ds, key=lambda d: -d[2])[:4]:
+                c = (box[:2] + box[2:]) / 2.0
+                size = 2.5 * float((box[2:] - box[:2]).max())
+                right = int(cls > 0.5)
+                patch, _ = wu.generate_image_patch_cv2(rgb[t], c[0], c[1], size, size, 256, 256, right == 0, 1.0, 0,
+                                                      border_mode=cv2.BORDER_CONSTANT)
+                patches.append(patch); meta.append((t, c, size, right, float(conf)))
+        out = [[] for _ in frames]
+        if not patches:
+            return out
+        # 3) model, batched
+        cams, kps = [], []
+        with torch.no_grad():
+            for i in range(0, len(patches), model_batch):
+                x = torch.from_numpy(np.stack(patches[i:i + model_batch])).to(P.device, dtype=P.dtype)
+                o = P.wilor_model(x)
+                cams.append(o["pred_cam"].float().cpu().numpy()); kps.append(o["pred_keypoints_3d"].float().cpu().numpy())
+        cams, kps = np.concatenate(cams), np.concatenate(kps)
+        # 4) un-mirror left hands, place in the full frame, project to 2D (for assigning hands to wrists)
+        focal = P.FOCAL_LENGTH / P.IMAGE_SIZE * max(W, H)
+        for j, (t, c, size, right, conf) in enumerate(meta):
+            k3 = kps[j].copy(); pc = cams[j:j + 1].copy()
+            pc[:, 1] *= (2 * right - 1)
+            if right == 0:
+                k3[:, 0] = -k3[:, 0]
+            cam_t = wu.cam_crop_to_full(pc, c[None], size, np.array([[W, H]], np.float32), focal)
+            k2 = wu.perspective_projection(k3[None], translation=cam_t, focal_length=np.array([[focal, focal]]),
+                                           camera_center=np.array([[W / 2.0, H / 2.0]]))[0]
+            out[t].append((k2.astype(np.float32), k3.astype(np.float32), conf))
         return out
 
 

@@ -6,7 +6,7 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { FilesetResolver, PoseLandmarker, DrawingUtils } from '@mediapipe/tasks-vision';
 import { createStage } from './stage.js';
-import { Rig, OneEuro, Track, trackToClip, blendSnapshots, smplGlobals, aaToQuat } from './retarget.js';
+import { HAND_LIMITS, Rig, OneEuro, Track, trackToClip, blendSnapshots, smplGlobals, aaToQuat } from './retarget.js';
 
 const $ = (s) => document.querySelector(s);
 // Mixamo-rigged characters from the three.js examples (loaded from the CDN, not redistributed here).
@@ -353,6 +353,8 @@ function runHQ(take) {
 // Finger tracking from the HQ worker: per hand, 21 wrist-relative keypoints per frame (GVHMR world axes).
 const _kp = Array.from({ length: 21 }, () => new THREE.Vector3());
 function applyHandsFrame(hands, f, yawFix) {
+  // WiLoR's MANO hands are anatomically valid already; joint limits only help MediaPipe's noisy depth.
+  HAND_LIMITS.enabled = hands?.method !== 'wilor';
   for (const [src, side] of [['R', 'Right'], ['L', 'Left']]) {
     const h = hands?.[src];
     if (settings.hands !== false && h?.valid[f]) {
@@ -674,7 +676,7 @@ $('#file-vid').onchange = (e) => {
 // Debug handle for the console.
 window.p2r = {
   get current() { return current; }, get rig() { return rig; }, takes, video, stats,
-  stage,
+  stage, HAND_LIMITS, rebake() { for (const t of takes) if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); },
   /** Debug: frame the camera on a bone (e.g. 'RightHand') at distance d. */
   focusBone(name, d = 0.6, dir = [0.15, 0.1, 1]) {
     const r = onStage ? cast[onStage].rig : rig;
