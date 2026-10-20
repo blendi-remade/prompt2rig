@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/Vp3cw3e29"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/discord-dark.svg"><img src="docs/media/discord-light.svg" height="32" alt="join the discord"></picture></a>&nbsp;
+  <a href="https://discord.gg/universal-modder"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/discord-dark.svg"><img src="docs/media/discord-light.svg" height="32" alt="join the discord"></picture></a>&nbsp;
   <a href="https://universalmodder.com"><img src="docs/media/button-website.png" height="32" alt="visit universalmodder.com"></a>&nbsp;
   <a href="https://x.com/universalmodhq"><img src="docs/media/button-x.png" height="32" alt="follow @universalmodhq on x"></a>
 </p>
@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">A <a href="https://universalmodder.com">universal-modder</a> tool. Share what you make, get help, and follow along on
-<a href="https://discord.gg/Vp3cw3e29">discord</a> and <a href="https://x.com/universalmodhq">x</a>.</p>
+<a href="https://discord.gg/universal-modder">discord</a> and <a href="https://x.com/universalmodhq">x</a>.</p>
 
 ## How it works
 
@@ -163,7 +163,7 @@ node tools/capture.mjs --clip <video url> --prompt "..." --passes 2 --zoom 5.2-1
 ## Community
 
 Made by the [universal-modder](https://universalmodder.com) crew.
-[Discord](https://discord.gg/Vp3cw3e29) · [X @universalmodhq](https://x.com/universalmodhq) · [universalmodder.com](https://universalmodder.com)
+[Discord](https://discord.gg/universal-modder) · [X @universalmodhq](https://x.com/universalmodhq) · [universalmodder.com](https://universalmodder.com)
 
 ## License
 
