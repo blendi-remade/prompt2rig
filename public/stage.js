@@ -4,8 +4,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
-const FLOOR_COLOR = 0x15171b;
-const FOG_COLOR = 0x111216;
+// universal-modder palette: void / coal / rule, magenta ("missing") rim
+const FLOOR_COLOR = 0x17141b;
+const FOG_COLOR = 0x0e0c10;
 
 function gradientTexture(top, bottom) {
   const c = document.createElement('canvas'); c.width = 4; c.height = 512;
@@ -37,7 +38,7 @@ export function createStage(container) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = gradientTexture('#262a32', '#111216');
+  scene.background = gradientTexture('#25212a', '#0e0c10');
   scene.fog = new THREE.Fog(FOG_COLOR, 9, 26);
   // Soft studio reflections on the characters' materials.
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -53,13 +54,13 @@ export function createStage(container) {
 
   // Lights: warm key with soft shadows, cool rim from behind, low fill.
   scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x16181c, 0.55));
-  const key = new THREE.DirectionalLight(0xfff1e0, 2.6);
+  const key = new THREE.DirectionalLight(0xf2ece2, 2.7);
   key.position.set(-2.8, 5.5, 4.2); key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
   Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 0.5, far: 20 });
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x8fb8ff, 2.2);
+  const rim = new THREE.DirectionalLight(0xff3cd2, 1.15);
   rim.position.set(3.5, 4, -4.5);
   scene.add(rim);
   const fill = new THREE.DirectionalLight(0xffffff, 0.35);
@@ -68,7 +69,7 @@ export function createStage(container) {
 
   // Floor: a mirror underneath a mostly-opaque matte surface → a subtle, soft reflection.
   const mirror = new Reflector(new THREE.CircleGeometry(40, 64), {
-    color: 0x6f747c,
+    color: 0x6f6876,
     textureWidth: Math.round(container.clientWidth * renderer.getPixelRatio() * 0.5) || 1024,
     textureHeight: Math.round(container.clientHeight * renderer.getPixelRatio() * 0.5) || 1024,
   });
@@ -80,7 +81,7 @@ export function createStage(container) {
   );
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(40, 80, 0x3a3f47, 0x262a30);
+  const grid = new THREE.GridHelper(40, 80, 0x302b36, 0x231f28);
   grid.material.transparent = true; grid.material.opacity = 0.35; grid.position.y = 0.002;
   scene.add(grid);
 

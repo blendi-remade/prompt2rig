@@ -16,7 +16,7 @@ const CHARACTERS = {
   michelle: { name: 'Michelle', url: THREE_MODELS + 'Michelle.glb' },
   soldier: { name: 'Soldier', url: THREE_MODELS + 'Soldier.glb' },
 };
-const VIDEO_MODEL_LABEL = { h3: 'H3 Max Turbo', flux3: 'FLUX 3 Max' };
+const VIDEO_MODEL_LABEL = { h3: 'h3 max turbo', flux3: 'flux 3 max' };
 const MP_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
 const MP_MODEL = (v) => `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${v}/float16/latest/pose_landmarker_${v}.task`;
 
@@ -124,7 +124,7 @@ async function loadModel(src, name) {
 }
 
 async function loadCharacter(src, name = 'X Bot') {
-  pill('rig', 'loading ' + name, 'busy');
+  pill('rig', 'loading ' + name.toLowerCase(), 'busy');
   const root = await loadModel(src, name);
   root.name = 'Character';
   const newRig = new Rig(root);
@@ -134,7 +134,7 @@ async function loadCharacter(src, name = 'X Bot') {
   for (const t of takes) { t.live = new Track(rig.order.length); t.liveDone = false; if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); }
   liveState ||= { hip0: null, baseY: null, mpp: null, scale: null };
   liveSnap = null; switchFrom = null;
-  pill('rig', name, 'ok');
+  pill('rig', name.toLowerCase(), 'ok');
   log(`character: ${name} (${rig.order.length} bones, ${rig.height.toFixed(2)} m)`);
   resetCast();
 }
@@ -172,7 +172,7 @@ function showOnStage(key) {
   stage.removeContactShadow(model);
   if (key) { cast[key].model.visible = true; stage.contactShadow(cast[key].model); }
   else stage.contactShadow(model);
-  pill('rig', key ? CHARACTERS[key].name : (CHARACTERS[settings.character]?.name || 'character'), 'ok');
+  pill('rig', (key ? CHARACTERS[key].name : (CHARACTERS[settings.character]?.name || 'character')).toLowerCase(), 'ok');
 }
 
 // ---- MediaPipe ---------------------------------------------------------------------
@@ -211,16 +211,16 @@ function renderTakes() {
   for (const t of [...takes].reverse()) {
     const card = document.createElement('div');
     card.className = 'take' + (t === current ? ' playing' : '');
-    const gen = t.status === 'generating' ? '<span class="pill busy"><span class="spin"></span> generating</span>'
+    const gen = t.status === 'generating' ? '<span class="pill busy">generating</span>'
       : t.status === 'error' ? '<span class="pill bad">failed</span>'
       : t.status === 'skipped' ? '<span class="pill">skipped</span>'
-      : `<span class="pill">${t.timings.gen?.toFixed(1)}s gen</span>`;
-    const live = t.liveDone ? '<span class="pill ok">live ✓</span>' : '';
-    const hq = { running: '<span class="pill busy"><span class="spin"></span> HQ</span>', done: `<span class="pill ok">HQ ✓ ${t.timings.hq?.toFixed(1)}s</span>`, error: '<span class="pill bad">HQ ✗</span>' }[t.hqStatus] || '';
+      : t.timings.gen ? `<span class="pill">${t.timings.gen.toFixed(1)}s gen</span>` : '';
+    const live = t.liveDone ? '<span class="pill">live</span>' : '';
+    const hq = { running: '<span class="pill busy">hq</span>', done: `<span class="pill ok">hq ${t.timings.hq?.toFixed(1)}s</span>`, error: '<span class="pill bad">hq failed</span>' }[t.hqStatus] || '';
     card.innerHTML = `<div class="p" title="${escapeHtml(t.prompt)}">#${t.id} · ${t.auto ? '<i style="color:var(--dim)">idle</i> · ' : ''}${escapeHtml(t.prompt)}</div>
       <div class="meta">${gen}${live}${hq}</div>
-      <div class="actions"><button class="btn" data-a="play" ${t.videoUrl ? '' : 'disabled'}>▶ Play</button>
-      <button class="btn" data-a="glb" ${t.best ? '' : 'disabled'}>⬇ GLB</button></div>`;
+      <div class="actions"><button class="btn" data-a="play" ${t.videoUrl ? '' : 'disabled'}>▶ play</button>
+      <button class="btn" data-a="glb" ${t.best ? '' : 'disabled'}>↓ glb</button></div>`;
     card.querySelector('[data-a=play]').onclick = () => playTake(t);
     card.querySelector('[data-a=glb]').onclick = () => exportTake(t);
     el.appendChild(card);
@@ -266,7 +266,7 @@ function maybeIdle() {
 async function ensurePerformer(force = false) {
   const o = settings.orientation;
   if (settings.performerUrls[o] && !force) return settings.performerUrls[o];
-  banner('Creating performer…');
+  banner('creating performer…');
   const t0 = performance.now();
   const r = await api('/api/image', { prompt: PERFORMER_PROMPT, image_size: o === 'portrait' ? 'portrait_16_9' : 'landscape_16_9' });
   settings.performerUrls[o] = r.image_url; save();
@@ -285,7 +285,7 @@ async function generate(take) {
     } else if (settings.source === 'performer') {
       image_url = await ensurePerformer(); from = 'performer';
     }
-    banner(`Generating #${take.id}…`);
+    banner(`generating #${take.id}…`);
     log(`#${take.id} → ${VIDEO_MODEL_LABEL[settings.videoModel]} (${from}, ${settings.duration}s ${settings.resolution})`);
     const r = await api('/api/video', {
       prompt: videoPrompt(take.prompt, !!image_url), image_url,
@@ -293,7 +293,7 @@ async function generate(take) {
     });
     take.videoUrl = r.video_url; take.status = 'ready';
     take.timings.gen = (performance.now() - t0) / 1000;
-    log(`#${take.id} video in ${take.timings.gen.toFixed(1)}s (GPU ${r.timings?.inference?.toFixed(2) ?? '?'}s)`, 'ok');
+    log(`#${take.id} video in ${take.timings.gen.toFixed(1)}s (gpu ${r.timings?.inference?.toFixed(2) ?? '?'}s)`, 'ok');
     take.prevGenerated = lastGenerated;
     lastGenerated = take;
     // Grab the final frame now (in parallel with HQ) so the next chained clip can start immediately.
@@ -305,7 +305,7 @@ async function generate(take) {
       // Normally play only once HQ is ready; if the player starves meanwhile, startStarved()
       // plays it early with the live preview and HQ cross-fades in when it lands.
       take.awaitingHq = true;
-      if (!current) banner(`#${take.id}: waiting for HQ motion…`);
+      if (!current) banner(`#${take.id}: waiting for hq motion…`);
       take.hqPromise.finally(() => {
         banner('');
         if (take.awaitingHq && take.status !== 'skipped') { take.awaitingHq = false; enqueue(take); }
@@ -333,8 +333,8 @@ async function lastFrameDataUrl(url) {
 // ---- HQ (GVHMR) --------------------------------------------------------------------------
 let hqOnline = false;
 async function checkHQ() {
-  try { const r = await api('/api/hq/health'); hqOnline = !!r.ok; pill('hq', r.ok ? `HQ: ${r.device || 'ready'}` : 'HQ: ' + (r.error || 'not ready'), r.ok ? 'ok' : 'bad'); }
-  catch { hqOnline = false; pill('hq', 'HQ worker offline', 'bad'); }
+  try { const r = await api('/api/hq/health'); hqOnline = !!r.ok; pill('hq', r.ok ? `hq · ${(r.device || 'ready').replace(/^NVIDIA GeForce /, '').toLowerCase()}` : 'hq · ' + (r.error || 'not ready'), r.ok ? 'ok' : 'bad'); }
+  catch { hqOnline = false; pill('hq', 'hq worker offline', 'bad'); }
 }
 
 function runHQ(take) {
@@ -344,9 +344,9 @@ function runHQ(take) {
     .then((r) => {
       take.hqRaw = r; take.hq = bakeSmpl(r); take.hqAt = performance.now();
       take.hqStatus = 'done'; take.timings.hq = (performance.now() - t0) / 1000;
-      log(`#${take.id} HQ motion in ${take.timings.hq.toFixed(1)}s (${r.n} frames, worker ${r.elapsed?.toFixed(1)}s)`, 'hq');
+      log(`#${take.id} hq motion in ${take.timings.hq.toFixed(1)}s (${r.n} frames, worker ${r.elapsed?.toFixed(1)}s)`, 'hq');
     })
-    .catch((e) => { take.hqStatus = 'error'; log(`#${take.id} HQ failed: ${e.message}`, 'err'); })
+    .catch((e) => { take.hqStatus = 'error'; log(`#${take.id} hq failed: ${e.message}`, 'err'); })
     .finally(renderTakes);
 }
 
@@ -433,7 +433,7 @@ function startStarved() {
   const next = takes.find((t) => t.awaitingHq && t.status === 'ready' && !t.started);
   if (!next) return false;
   next.awaitingHq = false;
-  log(`#${next.id} starting on live preview (HQ still running)`);
+  log(`#${next.id} starting on live preview (hq still running)`);
   enqueue(next);
   return true;
 }
@@ -579,10 +579,10 @@ function tick() {
     const t = video.currentTime;
     const live = current.liveDone ? current.live.sample(t, bufA) : liveSnap;
     const hq = current.hq ? current.hq.sample(t, bufB) : null;
-    let snap = hq || live, src = hq ? 'HQ · GVHMR' : live ? 'LIVE · MediaPipe' : '—';
+    let snap = hq || live, src = hq ? 'hq · gvhmr' : live ? 'live · mediapipe' : '—';
     if (hq && live) {
       const w = Math.min(1, (performance.now() - current.hqAt) / 600);
-      if (w < 1) { snap = blendSnapshots(live.q, live.p, hq.q, hq.p, w, bufC); src = 'LIVE → HQ'; }
+      if (w < 1) { snap = blendSnapshots(live.q, live.p, hq.q, hq.p, w, bufC); src = 'live → hq'; }
     }
     if (snap && switchFrom) {
       const w = Math.min(1, (performance.now() - switchAt) / 250);
@@ -775,4 +775,4 @@ const startChar = CHARACTERS[settings.character] || CHARACTERS.xbot;
 loadCharacter(startChar.url, startChar.name).catch((e) => { log('character failed: ' + e.message, 'err'); pill('rig', 'character failed', 'bad'); });
 initPose(settings.poseModel).catch((e) => { log('pose model failed: ' + e.message, 'err'); pill('pose', 'pose failed', 'bad'); });
 checkHQ(); setInterval(checkHQ, 10000);
-log('ready — type a motion and hit Generate');
+log('ready. type a motion and hit generate');

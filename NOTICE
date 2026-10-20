@@ -1,4 +1,4 @@
-Prompt2Rig
+prompt2rig
 Copyright 2026 blendi-remade
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
@@ -7,7 +7,11 @@ Portions of hq/worker.py (the SMPL joint computation in `leg_length`) are adapte
 Motion2MixamoRig (https://github.com/MaxLiu22/Motion2MixamoRig), Copyright its authors,
 licensed under the Apache License, Version 2.0.
 
-This repository does not include third-party models or assets. At runtime it downloads or
+The universal-modder logos in public/brand and docs/media are the brand assets of universal-modder,
+used here by the universal-modder team. The fonts in public/brand/fonts (Geist Pixel, Instrument Sans,
+Sometype Mono) are licensed under the SIL Open Font License 1.1; their license files sit next to them.
+
+Apart from those, this repository does not include third-party models or assets. At runtime it downloads or
 loads components under their own licenses, including some that are NON-COMMERCIAL or copyleft:
 
   - GVHMR (zju3dv) and the `gvhmr` package: educational, research and non-profit use only.
