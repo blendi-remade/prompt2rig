@@ -10,10 +10,13 @@ import * as THREE from 'three';
 const V3 = THREE.Vector3;
 const Q = THREE.Quaternion;
 
+const fingerBones = (side) => ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'].flatMap((f) => [1, 2, 3].map((k) => `${side}Hand${f}${k}`));
+
+// Parent-first, so world-space writes (copyPoseFrom) can go in order.
 export const BONES = [
   'Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head',
-  'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
-  'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+  'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', ...fingerBones('Left'),
+  'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand', ...fingerBones('Right'),
   'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase',
   'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase',
 ];
@@ -34,6 +37,30 @@ const MP = {
   lHip: 23, rHip: 24, lKnee: 25, rKnee: 26, lAnkle: 27, rAnkle: 28,
   lHeel: 29, rHeel: 30, lFoot: 31, rFoot: 32,
 };
+
+// Hand keypoint chains (MediaPipe / OpenPose order) → Mixamo finger names.
+const HAND_CHAINS = [
+  ['Thumb', [1, 2, 3, 4]], ['Index', [5, 6, 7, 8]], ['Middle', [9, 10, 11, 12]],
+  ['Ring', [13, 14, 15, 16]], ['Pinky', [17, 18, 19, 20]],
+];
+
+/**
+ * Anatomical finger limits. Middle/end joints (PIP/DIP) are hinges: keep only the curl toward the palm,
+ * 0°–100°, no sideways or backward bending. Knuckles (MCP) keep their sideways spread but can't
+ * hyperextend more than ~20°. Removes most single-camera depth noise from tracked fingers.
+ */
+function hinge(dir, parentDir, palm, isKnuckle) {
+  const u = palm.clone().sub(parentDir.clone().multiplyScalar(palm.dot(parentDir))).normalize(); // palm side, ⟂ parent
+  const along = dir.dot(parentDir), curl = dir.dot(u);
+  if (isKnuckle) {
+    const lateral = dir.clone().sub(parentDir.clone().multiplyScalar(along)).sub(u.clone().multiplyScalar(curl));
+    const flex = Math.min(1.6, Math.max(-0.35, Math.atan2(curl, along)));
+    return parentDir.clone().multiplyScalar(Math.cos(flex)).add(u.clone().multiplyScalar(Math.sin(flex)))
+      .add(lateral.clampLength(0, 0.45)).normalize();
+  }
+  const flex = Math.min(1.75, Math.max(0, Math.atan2(curl, along)));
+  return parentDir.clone().multiplyScalar(Math.cos(flex)).add(u.multiplyScalar(Math.sin(flex))).normalize();
+}
 
 const FOOT_POINTS = ['LeftToe_End', 'RightToe_End', 'LeftToeBase', 'RightToeBase', 'LeftFoot', 'RightFoot'];
 
@@ -273,6 +300,64 @@ export class Rig {
     const qNow = basisQuat(along, new V3().crossVectors(along, across).cross(along));
     this.setWorldQuat(name, qNow.multiply(qRest.invert()).multiply(this.rest[name].wq));
     if (weight < 1) { b.quaternion.copy(before.slerp(b.quaternion, weight)); b.updateMatrixWorld(true); }
+  }
+
+  // ---- hands / fingers ---------------------------------------------------------
+  /** Swing `name` so its bone (toward `childName`) points along world direction `dir`. */
+  aimTo(name, childName, dir) {
+    const b = this.bones[name], c = this.bones[childName];
+    if (!b || !c || dir.lengthSq() < 1e-10) return;
+    const cur = c.getWorldPosition(_v1).sub(b.getWorldPosition(_v2)).normalize();
+    const delta = new Q().setFromUnitVectors(cur, dir.clone().normalize());
+    this.setWorldQuat(name, delta.multiply(b.getWorldQuaternion(_q2)));
+  }
+
+  /**
+   * Pose a hand from 21 tracked keypoints (world axes, wrist-relative; MediaPipe/OpenPose order).
+   * `side` is 'Left' | 'Right' (the character's own). Palm orientation comes from the knuckles,
+   * each finger bone is aimed along its measured segment — directions only, so hand size doesn't matter.
+   */
+  applyHand(side, kp) {
+    const hand = `${side}Hand`;
+    if (!this.bones[hand]) return;
+    const along = kp[9].clone().sub(kp[0]).normalize();
+    const across = kp[5].clone().sub(kp[17]);
+    this.aimHand(hand, along, across, 1);
+    // Palm-side normal (mirror between hands): fingers may only curl toward it.
+    const palm = new V3().crossVectors(along, across).normalize();
+    if (side === 'Right') palm.negate();
+    for (const [finger, ids] of HAND_CHAINS) {
+      let parentDir = along;
+      for (let k = 1; k <= 3; k++) {
+        const name = `${side}Hand${finger}${k}`, child = `${side}Hand${finger}${k + 1}`;
+        if (!this.bones[name] || !this.bones[child]) break;
+        let dir = kp[ids[k]].clone().sub(kp[ids[k - 1]]).normalize();
+        if (finger !== 'Thumb') dir = hinge(dir, parentDir, palm, k === 1);
+        this.aimTo(name, child, dir);
+        parentDir = dir;
+      }
+    }
+  }
+
+  /** No tracking for this hand: a relaxed natural curl instead of a flat, rigid T-pose hand. */
+  relaxHand(side, amount = 1) {
+    const hand = this.bones[`${side}Hand`];
+    if (!hand) return;
+    // Palms face down in the Mixamo T-pose; carry that "palm side" along with the current hand pose.
+    const palm = new V3(0, -1, 0).applyQuaternion(hand.getWorldQuaternion(new Q()).multiply(_q3.copy(this.rest[`${side}Hand`].wq).invert()));
+    for (const [finger] of HAND_CHAINS) {
+      const curl = finger === 'Thumb' ? [0.12, 0.18, 0.15] : [0.32, 0.42, 0.3];
+      for (let k = 1; k <= 3; k++) {
+        const name = `${side}Hand${finger}${k}`, child = `${side}Hand${finger}${k + 1}`;
+        const b = this.bones[name], c = this.bones[child];
+        if (!b || !c) break;
+        const dir = c.getWorldPosition(_v1).sub(b.getWorldPosition(_v2)).normalize();
+        const axis = new V3().crossVectors(dir, palm).normalize();
+        if (axis.lengthSq() < 1e-6) continue;
+        const rot = new Q().setFromAxisAngle(axis, curl[k - 1] * amount);
+        this.setWorldQuat(name, rot.multiply(b.getWorldQuaternion(_q2)));
+      }
+    }
   }
 
   // ---- source B: SMPL (GVHMR) -------------------------------------------------

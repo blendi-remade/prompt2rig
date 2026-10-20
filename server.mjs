@@ -137,7 +137,7 @@ const server = http.createServer(async (req, res) => {
       const b = await readJson(req);
       const r = await fetch(`${HQ_URL}/process`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_url: b.video_url }),
+        body: JSON.stringify({ video_url: b.video_url, ...(b.hands ? { hands: b.hands } : {}) }),
       });
       const text = await r.text();
       res.writeHead(r.status, { 'Content-Type': 'application/json' });

@@ -24,3 +24,9 @@ renders/
 captures/
 node_modules/
 captures_xbot/
+
+# hand bench: environments, test clips, outputs, models
+bench/.venv/
+bench/clips/
+bench/out/
+*.task

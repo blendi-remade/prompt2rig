@@ -130,6 +130,7 @@ export function createStage(container) {
   function fitFog() { const d = baseDistance(); scene.fog.near = d + 3; scene.fog.far = d + 20; }
 
   function update(focus) {
+    if (state.lock) { controls.target.copy(state.lock); controls.update(); renderer.render(scene, camera); return; }
     if (focus) state.focus.lerp(new THREE.Vector3(focus.x, 0.95, focus.z), 0.04);
     const now = performance.now();
     if (state.cinematic && now > state.pausedUntil) {
@@ -160,6 +161,8 @@ export function createStage(container) {
     renderer, scene, camera, controls, update, contactShadow, removeContactShadow, placeContactShadow,
     setCinematic(on) { state.cinematic = on; state.t0 = performance.now(); },
     /** Width in meters of what should stay in frame (solo ≈ 1.4, crowd wider). */
+    /** Pin the camera target (debug close-ups); null to release. */
+    setFocusLock(p) { state.lock = p ? p.clone() : null; },
     setFraming(widthMeters) { state.width = widthMeters; reframe(); fitFog(); },
     /** Pixels on the left covered by the video panel. */
     setInset(px) { if (Math.abs(px - state.inset) > 2) { state.inset = px; applyInset(); reframe(); fitFog(); } },

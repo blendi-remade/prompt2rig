@@ -59,7 +59,7 @@ const videoPrompt = (action, fromImage) => fromImage
 const DEFAULTS = {
   stream: false, source: 'performer', chain: false, duration: 5, resolution: '480P', hq: true, waitHq: false,
   rootMotion: true, poseModel: 'heavy', smoothing: 0.5, showSkel: true, orientation: 'portrait', performerUrls: {},
-  character: 'xbot', videoModel: 'h3', swap: false, cinematic: false,
+  character: 'xbot', videoModel: 'h3', swap: false, cinematic: false, hands: true,
 };
 const settings = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('p2r') || '{}') }; } catch { return { ...DEFAULTS }; } })();
 const save = () => { try { localStorage.setItem('p2r', JSON.stringify(settings)); } catch {} };
@@ -340,7 +340,7 @@ async function checkHQ() {
 function runHQ(take) {
   const t0 = performance.now();
   take.hqStatus = 'running'; renderTakes();
-  take.hqPromise = api('/api/hq', { video_url: take.videoUrl })
+  take.hqPromise = api('/api/hq', { video_url: take.videoUrl, ...(take.handsMethod ? { hands: take.handsMethod } : {}) })
     .then((r) => {
       take.hqRaw = r; take.hq = bakeSmpl(r); take.hqAt = performance.now();
       take.hqStatus = 'done'; take.timings.hq = (performance.now() - t0) / 1000;
@@ -348,6 +348,19 @@ function runHQ(take) {
     })
     .catch((e) => { take.hqStatus = 'error'; log(`#${take.id} HQ failed: ${e.message}`, 'err'); })
     .finally(renderTakes);
+}
+
+// Finger tracking from the HQ worker: per hand, 21 wrist-relative keypoints per frame (GVHMR world axes).
+const _kp = Array.from({ length: 21 }, () => new THREE.Vector3());
+function applyHandsFrame(hands, f, yawFix) {
+  for (const [src, side] of [['R', 'Right'], ['L', 'Left']]) {
+    const h = hands?.[src];
+    if (settings.hands !== false && h?.valid[f]) {
+      const o = f * 63;
+      for (let j = 0; j < 21; j++) _kp[j].set(h.kp[o + j * 3], h.kp[o + j * 3 + 1], h.kp[o + j * 3 + 2]).applyQuaternion(yawFix);
+      rig.applyHand(side, _kp);
+    } else rig.relaxHand(side);
+  }
 }
 
 /** GVHMR SMPL params → Track of Mixamo local rotations + grounded hips path. */
@@ -373,6 +386,7 @@ function bakeSmpl(r) {
     d.set(T[f * 3] - T[0], T[f * 3 + 1] - T[1], T[f * 3 + 2] - T[2]).applyQuaternion(yawFix).multiplyScalar(scale);
     const p = rig.rest.Hips.wp.clone().add(d);
     rig.setHipsWorld(p);
+    applyHandsFrame(r.hands, f, yawFix);
     lows.push(rig.lowestFoot());
     track.push(f / fps, rig.snapshot());
   }
@@ -618,7 +632,8 @@ bindSetting('swap', 'checked', (on) => { if (!on && model) showOnStage(null); })
 bindSetting('cinematic', 'checked', (on) => stage.setCinematic(on));
 bindSetting('character', 'value', (c) => { if (rig && CHARACTERS[c]) loadCharacter(CHARACTERS[c].url, CHARACTERS[c].name).catch((e) => log('character failed: ' + e.message, 'err')); });
 bindSetting('duration', 'value', (v) => ($('#duration-v').textContent = v + 's'));
-bindSetting('hq', 'checked'); bindSetting('waitHq', 'checked'); bindSetting('rootMotion', 'checked');
+bindSetting('hq', 'checked');
+bindSetting('hands', 'checked', () => { if (rig) for (const t of takes) if (t.hqRaw) t.hq = bakeSmpl(t.hqRaw); }); bindSetting('waitHq', 'checked'); bindSetting('rootMotion', 'checked');
 bindSetting('showSkel', 'checked');
 bindSetting('smoothing', 'value', setSmoothing);
 bindSetting('poseModel', 'value', (v) => { if (vision) initPose(v); });
@@ -659,6 +674,15 @@ $('#file-vid').onchange = (e) => {
 // Debug handle for the console.
 window.p2r = {
   get current() { return current; }, get rig() { return rig; }, takes, video, stats,
+  stage,
+  /** Debug: frame the camera on a bone (e.g. 'RightHand') at distance d. */
+  focusBone(name, d = 0.6, dir = [0.15, 0.1, 1]) {
+    const r = onStage ? cast[onStage].rig : rig;
+    const p = r.bones[name].getWorldPosition(new THREE.Vector3());
+    stage.setCinematic(false); stage.controls.target.copy(p);
+    stage.camera.position.copy(p).add(new THREE.Vector3(...dir).normalize().multiplyScalar(d));
+    stage.setFocusLock?.(p);
+  },
   // ---- frame-exact capture: used by tools/capture.mjs ----
   submit(prompt, { duration } = {}) {
     if (duration) { settings.duration = duration; $('#duration').value = duration; $('#duration-v').textContent = duration + 's'; }
@@ -683,10 +707,11 @@ window.p2r = {
       video.currentTime = t; await seeked;
     }
     lastDetectT = -1; tick();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // Two frames so the compositor has painted (with a timeout: hidden tabs don't run rAF).
+    await Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise((r) => setTimeout(r, 80))]);
   },
   endCapture() { capturing = false; video.play().catch(() => {}); },
-  playUrl(u, hq = true) { const t = new Take('debug: ' + u.slice(-24)); t.videoUrl = u; t.status = 'ready'; takes.push(t); if (hq && hqOnline) runHQ(t); enqueue(t); return t; },
+  playUrl(u, hq = true, hands) { const t = new Take('debug: ' + u.slice(-24)); t.videoUrl = u; t.status = 'ready'; t.handsMethod = hands; takes.push(t); if (hq && hqOnline) runHQ(t); enqueue(t); return { id: t.id }; },
 };
 
 // ---- boot --------------------------------------------------------------------------------------

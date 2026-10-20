@@ -219,6 +219,15 @@ def recover(video: Path, out_dir: Path):
 _BODY: dict = {}
 
 
+def cv2_size(path) -> tuple[int, int]:
+    import cv2
+
+    cap = cv2.VideoCapture(str(path))
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    return w, h
+
+
 def leg_length(params) -> float:
     """Mean hip→ankle length (m) of the recovered body; models cached across calls.
 
@@ -244,6 +253,19 @@ def leg_length(params) -> float:
 
 class ProcessIn(BaseModel):
     video_url: str
+    hands: str | None = None  # "wilor" | "mediapipe" | "off" (default: HQ_HANDS / auto)
+
+
+HANDS_EXEC = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hands")
+
+
+def hands_method(requested: str | None) -> str | None:
+    m = (requested or os.environ.get("HQ_HANDS", "auto")).lower()
+    if m == "off":
+        return None
+    if m == "auto":
+        return "wilor" if (HQ / "weights" / "wilor" / "pretrained_models" / "MANO_RIGHT.pkl").exists() else "mediapipe"
+    return m
 
 
 @app.get("/health")
@@ -277,6 +299,14 @@ def process(body: ProcessIn):
     if not (CACHE / "_warmup.mp4").exists():  # reused to warm CUDA kernels on the next start
         shutil.copyfile(video, CACHE / "_warmup.mp4")
 
+    # Hands only need the full-res clip: detect them while GVHMR runs, assign to wrists afterwards.
+    import hands as handmod
+
+    method = hands_method(body.hands)
+    src = out_dir / "source.mp4"
+    t_h0 = time.perf_counter()
+    hand_job = HANDS_EXEC.submit(handmod.detect, src if src.exists() else video, method) if method else None
+
     to_np = lambda x: (x.detach().cpu().numpy() if hasattr(x, "detach") else np.asarray(x)).astype(np.float32)  # noqa: E731
     def run():
         result, t = recover(video, out_dir)
@@ -284,9 +314,10 @@ def process(body: ProcessIn):
         t_ll = time.perf_counter()
         ll = leg_length(world)
         t["leg_length"] = time.perf_counter() - t_ll
-        return result, t, world, ll, to_np(result.smpl_params_camera["global_orient"])[0]
+        return result, t, world, ll, to_np(result.smpl_params_camera["global_orient"])
 
-    result, t, world, ll, incam_go0 = GPU.submit(run).result()
+    result, t, world, ll, incam_go = GPU.submit(run).result()
+    incam_go0 = incam_go[0]
 
     go, bp, tr = to_np(world["global_orient"]), to_np(world["body_pose"]), to_np(world["transl"])
     n = int(go.shape[0])
@@ -294,9 +325,25 @@ def process(body: ProcessIn):
     from motion2mixamorig.extract import playback_fps
 
     fps = playback_fps(video, n, fallback=30.0)
+
+    hands_out, t_hands = None, None
+    if hand_job is not None:
+        try:
+            import torch
+
+            dets, src_fps, hw = hand_job.result()
+            vit = np.asarray(torch.load(out_dir / "preprocess" / "vitpose.pt", weights_only=False))
+            cap = cv2_size(video)
+            hands_out = handmod.finish(dets, src_fps, hw, vit, max(cap), go, incam_go, n, fps)
+            hands_out["method"] = method
+            t_hands = time.perf_counter() - t_h0
+        except Exception as e:  # noqa: BLE001 — hands are a bonus; never fail the body motion
+            log(f"hands failed: {type(e).__name__}: {e}")
     total = time.perf_counter() - t0
+    hand_note = (f"  hands[{method}] {t_hands:.2f}s R {hands_out['R']['coverage']:.0%} L {hands_out['L']['coverage']:.0%}"
+                 if hands_out else "")
     log(f"{key}: {n} frames @ {fps:.1f}fps  download {t_dl:.2f}s  gvhmr {t['recover']:.2f}s  "
-        f"stabilize {t['stabilize']:.2f}s  legs {t['leg_length']:.2f}s  total {total:.2f}s")
+        f"stabilize {t['stabilize']:.2f}s  legs {t['leg_length']:.2f}s{hand_note}  total {total:.2f}s")
     return {
         "n": n, "fps": fps, "leg_length": ll,
         "global_orient": go.reshape(-1).round(5).tolist(),
@@ -305,6 +352,8 @@ def process(body: ProcessIn):
         # Frame-0 orientation relative to the camera (OpenCV axes): lets the client face the character
         # the way the person faces the camera, so chained clips keep a consistent heading.
         "incam_global_orient0": incam_go0.round(5).tolist(),
+        # Finger tracking: per hand 21 wrist-relative keypoints/frame in world axes (see hq/hands.py).
+        "hands": hands_out,
         "elapsed": total, "timings": {"download": t_dl, **t},
     }
 

@@ -130,6 +130,7 @@
       <label class="title">Motion</label>
       <label class="check"><input type="checkbox" id="hq" /><span>HQ pass (GVHMR on local GPU)<small>Live MediaPipe preview immediately, swaps to GVHMR motion when ready.</small></span></label>
       <label class="check"><input type="checkbox" id="waitHq" /><span>Hold playback until HQ is ready<small>Cleanest look; adds a few seconds before each clip.</small></span></label>
+      <label class="check"><input type="checkbox" id="hands" /><span>Track fingers<small>Hand model on the source clip → wrist + finger poses in the HQ motion. Untracked hands rest in a natural curl.</small></span></label>
       <label class="check"><input type="checkbox" id="rootMotion" /><span>Root motion</span></label>
       <div class="row"><span>Live pose model</span><select id="poseModel"><option value="heavy">Heavy</option><option value="full">Full</option></select></div>
       <div class="row"><span>Live smoothing</span><input type="range" id="smoothing" min="0" max="1" step="0.05" /></div>
