@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>prompt2rig · universal-modder</title>
-<link rel="icon" type="image/svg+xml" href="./brand/mark.svg" />
+<title>prompt2rig · patch</title>
+<link rel="icon" type="image/svg+xml" href="./brand/favicon.svg" />
 <script type="importmap">
 {
   "imports": {
@@ -15,22 +15,18 @@
 }
 </script>
 <style>
-  /* universal-modder brand: Geist Pixel titles, Instrument Sans text, Sometype Mono labels (all OFL, see brand/fonts) */
-  @font-face { font-family: "Geist Pixel"; src: url(./brand/fonts/GeistPixel.woff2) format("woff2"); font-display: block; }
-  @font-face { font-family: "Instrument Sans"; src: url(./brand/fonts/InstrumentSans.woff2) format("woff2"); font-weight: 400 700; font-display: swap; }
-  @font-face { font-family: "Sometype Mono"; src: url(./brand/fonts/SometypeMono.woff2) format("woff2"); font-weight: 400 700; font-display: swap; }
+  /* Patch's brand: Funnel Sans text, Red Hat Mono labels (both OFL, see brand/fonts) */
+  @font-face { font-family: "Funnel Sans"; src: url(./brand/fonts/FunnelSans.woff2) format("woff2"); font-weight: 300 800; font-display: swap; }
+  @font-face { font-family: "Red Hat Mono"; src: url(./brand/fonts/RedHatMono.woff2) format("woff2"); font-weight: 300 700; font-display: swap; }
 
   :root {
     color-scheme: dark;
-    /* brand palette (umv/brand.py) */
-    --void: #0e0c10; --coal: #1c1920; --coal2: #25212a; --coal3: #302b36; --rule: #2b2630;
-    --ash: #8e8796; --ash2: #5d5765; --bone: #f2ece2; --bone2: #e4dccd;
-    --missing: #ff3cd2; --missing-dim: #4a1342; --gold: #ffc94a; --gold-dim: #4a3a16; --err: #ff6b6b;
-    --pixel: "Geist Pixel", "Sometype Mono", monospace;
-    --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
-    --mono: "Sometype Mono", ui-monospace, Consolas, monospace;
-    /* the brand's notched pixel corner (like the badge and discord button) */
-    --notch: polygon(3px 0, calc(100% - 3px) 0, calc(100% - 3px) 3px, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 3px calc(100% - 3px), 0 calc(100% - 3px), 0 3px, 3px 3px);
+    /* Patch's palette: black, white, greys and the patch pink; --err is the one exception, for errors */
+    --void: #000000; --coal: #1c1c1c; --coal2: #262626; --coal3: #333333; --rule: #333333;
+    --ash: #999999; --ash2: #666666; --bone: #ffffff; --bone2: #e0e0e0;
+    --patch: #f53cd1; --err: #ff6b6b;
+    --sans: "Funnel Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "Red Hat Mono", ui-monospace, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   * { scrollbar-width: thin; scrollbar-color: var(--coal3) transparent; }
@@ -38,8 +34,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--coal3); border: 2px solid var(--coal); }
   ::-webkit-scrollbar-thumb:hover { background: var(--ash2); }
-  ::selection { background: var(--missing); color: var(--void); }
-  #prompt::selection { background: var(--missing-dim); color: var(--bone); }
+  ::selection { background: var(--patch); color: var(--void); }
+  #prompt::selection { background: var(--coal3); color: var(--bone); }
   html, body { margin: 0; height: 100%; background: var(--void); color: var(--bone); font: 13px/1.45 var(--sans); }
   button, input, select, textarea { font: inherit; color: inherit; }
   a { color: inherit; }
@@ -47,36 +43,35 @@
   .app { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 1fr 132px; height: 100vh; }
   aside { grid-row: 1 / 3; background: var(--coal); border-right: 1px solid var(--rule); overflow-y: auto; padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 16px; }
 
-  /* header: mark + name in Geist Pixel, a quiet "by universal-modder" */
+  /* header: mark + name, a quiet "by patch" */
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand img { width: 30px; height: 30px; image-rendering: pixelated; }
-  .brand h1 { margin: 0; font: 26px/1 var(--pixel); letter-spacing: .5px; font-feature-settings: "liga" 0, "calt" 0; }
-  .brand h1 .dot { color: var(--missing); }
+  .brand img { width: 28px; height: 28px; image-rendering: pixelated; }
+  .brand h1 { margin: 0; font: 500 24px/1 var(--sans); }
   .brand .by { display: block; margin-top: 4px; font: 10.5px/1 var(--mono); color: var(--ash); text-decoration: none; letter-spacing: .3px; }
   .brand .by:hover { color: var(--bone); }
 
   .pills { display: flex; flex-wrap: wrap; gap: 6px; }
-  .pill { font: 10.5px/1 var(--mono); padding: 4px 7px; background: var(--coal2); color: var(--ash); clip-path: var(--notch); display: inline-flex; align-items: center; gap: 5px; }
+  .pill { font: 10.5px/1 var(--mono); padding: 4px 7px; background: var(--coal2); color: var(--ash); display: inline-flex; align-items: center; gap: 5px; }
   .pill::before { content: ""; width: 5px; height: 5px; background: currentColor; }
-  .pill.ok { color: var(--gold); background: #2a2418; } .pill.bad { color: var(--err); } .pill.busy { color: var(--missing); background: #2b1a29; }
+  .pill.ok { color: var(--bone); } .pill.bad { color: var(--err); } .pill.busy { color: var(--patch); }
 
   textarea { width: 100%; min-height: 76px; resize: vertical; background: var(--void); border: 1px solid var(--rule); padding: 10px; outline: none; font: 13px/1.45 var(--sans); }
-  textarea:focus { border-color: var(--missing); }
-  .go { width: 100%; padding: 11px; border: 0; background: var(--bone); color: var(--void); font: 15px/1 var(--pixel); letter-spacing: .5px; cursor: pointer; clip-path: var(--notch); display: flex; justify-content: center; gap: 10px; align-items: baseline; }
+  textarea:focus { border-color: var(--patch); }
+  .go { width: 100%; padding: 11px; border: 0; background: var(--bone); color: var(--void); font: 500 15px/1 var(--sans); cursor: pointer; display: flex; justify-content: center; gap: 10px; align-items: baseline; }
   .go small { font: 10.5px var(--mono); opacity: .65; letter-spacing: 0; }
-  .go:hover { background: var(--missing); }
+  .go:hover { background: var(--patch); }
   .go:active { transform: translateY(1px); }
   .go:disabled { opacity: .5; cursor: default; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font-size: 11.5px; line-height: 1.3; padding: 5px 9px; background: var(--coal2); color: var(--bone2); cursor: pointer; clip-path: var(--notch); }
+  .chip { font-size: 11.5px; line-height: 1.3; padding: 5px 9px; background: var(--coal2); color: var(--bone2); cursor: pointer; }
   .chip:hover { background: var(--coal3); color: var(--bone); }
 
   .section { display: flex; flex-direction: column; gap: 9px; }
   .section > label.title { font: 10.5px/1 var(--mono); letter-spacing: .6px; color: var(--ash); display: flex; align-items: center; gap: 8px; }
   .section > label.title::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .row b { font: 12px var(--mono); color: var(--missing); font-weight: 400; }
-  select { background: var(--coal2); border: 0; padding: 5px 24px 5px 8px; clip-path: var(--notch); appearance: none; cursor: pointer;
+  .row b { font: 12px var(--mono); color: var(--bone); font-weight: 400; }
+  select { background: var(--coal2); border: 0; padding: 5px 24px 5px 8px; appearance: none; cursor: pointer;
     background-image: linear-gradient(45deg, transparent 50%, var(--ash) 50%), linear-gradient(135deg, var(--ash) 50%, transparent 50%);
     background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 4px 4px; background-repeat: no-repeat; }
   select:hover { background-color: var(--coal3); }
@@ -86,8 +81,8 @@
   .check { display: flex; gap: 9px; align-items: flex-start; cursor: pointer; }
   .check small { display: block; color: var(--ash); font-size: 11.5px; line-height: 1.35; margin-top: 1px; }
   .check input { appearance: none; flex: 0 0 13px; width: 13px; height: 13px; margin: 2px 0 0; background: var(--void); border: 1px solid var(--ash2); cursor: pointer; display: grid; place-items: center; }
-  .check input::after { content: ""; width: 5px; height: 5px; background: var(--missing); transform: scale(0); }
-  .check input:checked { border-color: var(--missing); }
+  .check input::after { content: ""; width: 5px; height: 5px; background: var(--patch); transform: scale(0); }
+  .check input:checked { border-color: var(--patch); }
   .check input:checked::after { transform: scale(1); }
   .check input:disabled { opacity: .5; }
   .check b { font-weight: 600; }
@@ -96,7 +91,7 @@
   input[type=range] { appearance: none; width: 130px; height: 14px; background: transparent; cursor: pointer; }
   input[type=range]::-webkit-slider-runnable-track { height: 3px; background: var(--coal3); }
   input[type=range]::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; margin-top: -3.5px; background: var(--bone); border: 0; }
-  input[type=range]:hover::-webkit-slider-thumb { background: var(--missing); }
+  input[type=range]:hover::-webkit-slider-thumb { background: var(--patch); }
   input[type=range]::-moz-range-track { height: 3px; background: var(--coal3); }
   input[type=range]::-moz-range-thumb { width: 10px; height: 10px; background: var(--bone); border: 0; border-radius: 0; }
 
@@ -104,21 +99,17 @@
   .performer img { width: 120px; aspect-ratio: 16/9; object-fit: cover; border: 1px solid var(--rule); background: var(--coal2); }
   .performer img.portrait { width: 62px; aspect-ratio: 9/16; }
   .note { color: var(--ash); font-size: 11.5px; line-height: 1.35; }
-  .btn { padding: 6px 10px; border: 0; background: var(--coal2); cursor: pointer; clip-path: var(--notch); font-size: 12px; }
+  .btn { padding: 6px 10px; border: 0; background: var(--coal2); cursor: pointer; font-size: 12px; }
   .btn:hover { background: var(--coal3); }
   .btn:disabled { opacity: .45; cursor: default; }
   .log { font: 11px/1.5 var(--mono); color: var(--ash); background: var(--void); border: 1px solid var(--rule); padding: 8px; max-height: 160px; overflow-y: auto; white-space: pre-wrap; }
-  .log .ok { color: var(--bone); } .log .err { color: var(--err); } .log .hq { color: var(--gold); }
+  .log .ok { color: var(--bone); } .log .err { color: var(--err); } .log .hq { color: var(--bone); }
 
-  /* universal-modder community card, top-left of the stage (same component as soccar) */
-  .um-discord { position: absolute; top: 14px; left: 14px; z-index: 5; color: var(--bone); text-decoration: none; filter: drop-shadow(-2px 2px 0 #000); }
-  .um-discord-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 11px; background: var(--coal); font: 12px/1.45 var(--mono); letter-spacing: .04em; font-variant-ligatures: none;
-    clip-path: polygon(4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px), 0 4px, 4px 4px); }
-  .um-discord-panel img { display: block; height: 18px; image-rendering: pixelated; }
-  .um-discord-label { display: flex; justify-content: space-between; }
-  .um-discord-arrow { color: var(--ash); }
-  .um-discord:hover .um-discord-panel { background: var(--coal2); }
-  .um-discord:hover .um-discord-label, .um-discord:hover .um-discord-arrow { color: var(--missing); }
+  /* Patch's Discord, top-left of the stage */
+  .discord-card { position: absolute; top: 14px; left: 14px; z-index: 5; display: flex; gap: 16px; justify-content: space-between; padding: 8px 12px; background: var(--coal); color: var(--bone); text-decoration: none; font: 12px/1.45 var(--mono); }
+  .discord-card-arrow { color: var(--ash); }
+  .discord-card:hover { background: var(--coal2); color: var(--patch); }
+  .discord-card:hover .discord-card-arrow { color: var(--patch); }
 
   main { position: relative; overflow: hidden; }
   #stage { position: absolute; inset: 0; }
@@ -131,14 +122,14 @@
   .vidwrap.portrait video { width: 100%; height: 100%; object-fit: contain; }
   .vidwrap.portrait .empty { aspect-ratio: auto; height: 100%; padding: 0 16px; text-align: center; }
   .hud { position: absolute; right: 14px; top: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; }
-  .hud .tag { font: 11px var(--mono); background: rgba(14,12,16,.82); padding: 5px 8px; clip-path: var(--notch); color: var(--ash); }
-  .hud .src-live { color: var(--missing); } .hud .src-hq { color: var(--gold); }
-  .banner { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(14,12,16,.88); padding: 8px 14px; font: 11.5px var(--mono); clip-path: var(--notch); display: none; }
+  .hud .tag { font: 11px var(--mono); background: rgba(0,0,0,.82); padding: 5px 8px; color: var(--ash); }
+  .hud .src-live { color: var(--patch); } .hud .src-hq { color: var(--bone); }
+  .banner { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: rgba(0,0,0,.88); padding: 8px 14px; font: 11.5px var(--mono); display: none; }
   .banner.on { display: block; }
 
   footer { background: var(--coal); border-top: 1px solid var(--rule); overflow-x: auto; overflow-y: hidden; display: flex; gap: 10px; padding: 10px 12px; }
-  .take { flex: 0 0 230px; background: var(--coal2); padding: 9px; display: flex; flex-direction: column; gap: 6px; clip-path: var(--notch); position: relative; }
-  .take.playing { background: #2b1a29; box-shadow: inset 2px 0 0 var(--missing); }
+  .take { flex: 0 0 230px; background: var(--coal2); padding: 9px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .take.playing { box-shadow: inset 2px 0 0 var(--patch); }
   .take .p { font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 34px; }
   .take .meta { display: flex; gap: 5px; flex-wrap: wrap; }
   .take .actions { display: flex; gap: 6px; margin-top: auto; }
@@ -153,10 +144,10 @@
 <div class="app">
   <aside>
     <div class="brand">
-      <img src="./brand/mark.svg" alt="universal-modder mark" />
+      <img src="./brand/mark.svg" alt="Patch mark" />
       <div>
-        <h1>prompt2rig<span class="dot">.</span></h1>
-        <a class="by" href="https://universalmodder.com" target="_blank" rel="noopener">by universal-modder</a>
+        <h1>prompt2rig.</h1>
+        <a class="by" href="https://patch.gg" target="_blank" rel="noopener">by patch</a>
       </div>
     </div>
     <div class="pills">
@@ -167,7 +158,7 @@
 
     <div class="section">
       <textarea id="prompt" placeholder="describe a motion… e.g. does an energetic hip hop dance">does an energetic hip hop dance with big arm movements</textarea>
-      <button class="go" id="go"><span>generate<span style="color:var(--missing)">.</span></span><small>ctrl+enter</small></button>
+      <button class="go" id="go"><span>generate.</span><small>ctrl+enter</small></button>
       <div class="chips" id="chips"></div>
     </div>
 
@@ -230,11 +221,8 @@
 
   <main>
     <div id="stage"></div>
-    <a class="um-discord" href="https://discord.gg/universal-modder" target="_blank" rel="noopener noreferrer" aria-label="join the universal-modder discord (opens in a new tab)">
-      <span class="um-discord-panel">
-        <img src="./brand/logo.svg" alt="universal-modder" />
-        <span class="um-discord-label">join our discord <span class="um-discord-arrow">↗</span></span>
-      </span>
+    <a class="discord-card" href="https://discord.gg/VpJHEQz58n" target="_blank" rel="noopener noreferrer" aria-label="join patch's discord (opens in a new tab)">
+      <span>join patch's discord</span> <span class="discord-card-arrow">↗</span>
     </a>
     <div class="vidwrap" id="vidwrap">
       <div class="empty" id="vid-empty">generated video appears here</div>

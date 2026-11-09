@@ -1,31 +1,19 @@
-<p align="center">
-  <img src="docs/media/banner.png" alt="prompt2rig by universal-modder: type a motion. a video model acts it out, your gpu lifts the 3d motion, fingers included, and any mixamo character performs it." width="100%">
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/header-evening.png">
+  <img alt="patch. prompt2rig. Type a motion, and any rigged character performs it." src="docs/readme/header-day.png" width="800">
+</picture>
 
-<p align="center">
-  <b>Type a motion. A video model acts it out, and any rigged character performs it, fingers included.</b><br>
-  A prompt goes to a fast video model on <a href="https://fal.ai">fal</a>, your GPU recovers clean 3D body and hand motion from the clip,
-  and it plays live on a Mixamo character in the browser, ready to export to Blender or Unity.
-</p>
+<br><br>
 
-<p align="center">
-  <a href="https://discord.gg/universal-modder"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/discord-dark.svg"><img src="docs/media/discord-light.svg" height="32" alt="join the discord"></picture></a>&nbsp;
-  <a href="https://universalmodder.com"><img src="docs/media/button-website.png" height="32" alt="visit universalmodder.com"></a>&nbsp;
-  <a href="https://x.com/universalmodhq"><img src="docs/media/button-x.png" height="32" alt="follow @universalmodhq on x"></a>
-</p>
+<img alt="Five takes made from prompts, each with its generated source clip in the corner: Michelle's side kick, an X Bot cheerleading high kick, a close-up of tracked fingers, an X Bot crane kick and Michelle's bollywood pose, with Patch's mark in the corner." src="docs/media/teaser.gif" width="640">
 
-<p align="center">
-  <img src="docs/media/teaser.gif" alt="Five takes made from prompts, each with its generated source clip in the corner: Michelle's side kick, an X Bot cheerleading high kick, a close-up of tracked fingers, an X Bot crane kick and Michelle's bollywood pose, with the universal-modder tile in the corner." width="560">
-</p>
+**@patch_gg** · FLUX 3 Max or H3 Max Turbo video · GVHMR body · WiLoR fingers · Apache-2.0 code.
 
-<p align="center">
-  <a href="#how-it-works"><img alt="video: flux 3 max · h3 max turbo" src="docs/media/badges/video.png" height="26"></a>
-  <a href="#how-it-works"><img alt="motion: gvhmr · wilor fingers" src="docs/media/badges/motion.png" height="26"></a>
-  <a href="#license"><img alt="license: apache-2.0" src="docs/media/badges/license.png" height="26"></a>
-</p>
+Type a motion. A video model acts it out, and any rigged character performs it, fingers included. A prompt goes to a
+fast video model on [fal](https://fal.ai), your GPU recovers clean 3D body and hand motion from the clip, and it plays
+live on a Mixamo character in the browser, ready to export to Blender or Unity.
 
-<p align="center">A <a href="https://universalmodder.com">universal-modder</a> tool. Share what you make, get help, and follow along on
-<a href="https://discord.gg/universal-modder">discord</a> and <a href="https://x.com/universalmodhq">x</a>.</p>
+**Made a game with your moves?** [Publish it on Patch](#publish-it-on-patch).
 
 ## How it works
 
@@ -125,6 +113,26 @@ node tools/capture.mjs --prompts tools/prompts_dynamic.txt --character xbot --ou
 node tools/capture.mjs --clip <video url> --prompt "..." --passes 2 --zoom 5.2-10.0 --zoom-bone RightHand
 ```
 
+## Publish it on Patch
+
+Built a game or a mod with your moves? Publish it on [Patch](https://patch.gg), where people play and remix browser
+games and mods. Install `pch`, Patch's command line, then restart your coding agent and ask it to publish the game: the
+install gives every agent on your PC Patch's tools. Or run it yourself:
+
+```bash
+npm i -g @patchgg/cli      # or: curl -fsSL https://patch.gg/install.sh | sh
+pch login
+pch init                   # in your game's folder; it says what's next
+pch publish
+```
+
+Publishing needs [Patch Desktop](https://docs.patch.gg/get-started) open on a Windows PC: it plays the game once to test
+it before it goes live.
+
+**Check [the licenses](#license) before you publish.** This repo's Apache-2.0 doesn't cover what you make with it. The
+HQ path (GVHMR, SMPL-X, WiLoR, MANO) is research / non-commercial, and the characters and video models have their own
+terms. If those don't allow what you're publishing, use the live pass or license those pieces.
+
 ## Project layout
 
 | Path | |
@@ -133,11 +141,12 @@ node tools/capture.mjs --clip <video url> --prompt "..." --passes 2 --zoom 5.2-1
 | `public/app.js` | UI, generation queue, live pose loop, playback and blending, stream mode, GLB export, capture hooks |
 | `public/stage.js` | the stage: lighting, reflective floor, contact shadows, cinematic camera |
 | `public/retarget.js` | Mixamo rig: MediaPipe landmarks → bones, SMPL rotations → bones, fingers, rig-to-rig pose copy |
-| `public/brand/` | universal-modder logos and fonts (Geist Pixel, Instrument Sans, Sometype Mono, all OFL) |
+| `public/brand/` | Patch's mark and fonts (Funnel Sans, Red Hat Mono, both OFL) |
 | `hq/worker.py` | FastAPI worker around the `gvhmr` package, tuned for single-person generated clips |
 | `hq/hands.py` | finger tracking: batched WiLoR or MediaPipe, wrist assignment, camera → world, smoothing |
-| `tools/` | Blender renderer, off-screen capture, prompt lists, README media generator |
+| `tools/` | Blender renderer, off-screen capture, prompt lists |
 | `bench/` | hand-pose test bench: detection and jitter metrics, 2D overlays, source-vs-rig close-ups |
+| `docs/readme/` | this README's header and footer; `make_art.py` redraws them from Patch's brand kit, which isn't in this repo (Patch Pixel is Patch's own typeface) |
 
 <details>
 <summary><b>HQ worker speedups</b> (stock <code>gvhmr.recover</code>: 10s → 3.4s per 5s clip)</summary>
@@ -162,13 +171,14 @@ node tools/capture.mjs --clip <video url> --prompt "..." --passes 2 --zoom 5.2-1
 
 ## Community
 
-Made by the [universal-modder](https://universalmodder.com) crew.
-[Discord](https://discord.gg/universal-modder) · [X @universalmodhq](https://x.com/universalmodhq) · [universalmodder.com](https://universalmodder.com)
+Made by [Patch](https://patch.gg) ([@patch_gg](https://x.com/patch_gg)). Share what you make and get help on
+[Discord](https://discord.gg/VpJHEQz58n).
 
 ## License
 
-prompt2rig's own code is **[Apache-2.0](LICENSE)** (see [NOTICE](NOTICE)). It runs alongside third-party components
-that keep their own licenses; none are included in this repo:
+prompt2rig's own code is **[Apache-2.0](LICENSE)** (see [NOTICE](NOTICE)). The Patch name, mark, wordmark and Patch
+Pixel belong to Patch and aren't covered by it. The code runs alongside third-party components that keep their own
+licenses; none are included in this repo:
 
 | Component | License | Commercial use |
 |---|---|---|
@@ -178,7 +188,7 @@ that keep their own licenses; none are included in this repo:
 | [MANO](https://mano.is.tue.mpg.de) hand model | non-commercial, registration required | ❌ |
 | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics): detectors in the HQ worker | AGPL-3.0 | ⚠️ copyleft, or an Ultralytics enterprise license |
 | MediaPipe · three.js | Apache-2.0 · MIT | ✅ |
-| Geist Pixel · Instrument Sans · Sometype Mono | SIL OFL 1.1 (bundled in `public/brand/fonts`) | ✅ |
+| Funnel Sans · Red Hat Mono | SIL OFL 1.1 (bundled in `public/brand/fonts`) | ✅ |
 | Mixamo characters | Adobe Mixamo terms (loaded from the three.js CDN, not redistributed) | ✅ in your own projects |
 | FLUX 3 Max, H3 Max Turbo, FLUX.1 schnell | fal and model-provider terms | per those terms |
 
@@ -186,3 +196,10 @@ In short: the web app, the live preview and video generation are commercially us
 WiLoR, MANO) is research / non-commercial**, so a commercial product would need to replace or license those pieces.
 
 Tested on Windows 11 with an RTX 4090.
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/footer-evening.png">
+  <img alt="patch.gg. Mashups, mods and browser games." src="docs/readme/footer-day.png" width="500">
+</picture>

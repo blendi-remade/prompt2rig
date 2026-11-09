@@ -7,9 +7,9 @@ Portions of hq/worker.py (the SMPL joint computation in `leg_length`) are adapte
 Motion2MixamoRig (https://github.com/MaxLiu22/Motion2MixamoRig), Copyright its authors,
 licensed under the Apache License, Version 2.0.
 
-The universal-modder logos in public/brand and docs/media are the brand assets of universal-modder,
-used here by the universal-modder team. The fonts in public/brand/fonts (Geist Pixel, Instrument Sans,
-Sometype Mono) are licensed under the SIL Open Font License 1.1; their license files sit next to them.
+The Patch name, mark, wordmark and Patch Pixel belong to Patch and aren't covered by this license. The mark in
+public/brand and the Patch art in docs/readme and docs/media are Patch's. The fonts in public/brand/fonts (Funnel
+Sans, Red Hat Mono) are licensed under the SIL Open Font License 1.1; their license files sit next to them.
 
 Apart from those, this repository does not include third-party models or assets. At runtime it downloads or
 loads components under their own licenses, including some that are NON-COMMERCIAL or copyleft:
