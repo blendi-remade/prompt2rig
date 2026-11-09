@@ -4,9 +4,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
-// universal-modder palette: void / coal / rule, magenta ("missing") rim
-const FLOOR_COLOR = 0x17141b;
-const FOG_COLOR = 0x0e0c10;
+// Patch's palette: black and greys
+const FLOOR_COLOR = 0x161616;
+const FOG_COLOR = 0x000000;
 
 function gradientTexture(top, bottom) {
   const c = document.createElement('canvas'); c.width = 4; c.height = 512;
@@ -38,7 +38,7 @@ export function createStage(container) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = gradientTexture('#25212a', '#0e0c10');
+  scene.background = gradientTexture('#262626', '#000000');
   scene.fog = new THREE.Fog(FOG_COLOR, 9, 26);
   // Soft studio reflections on the characters' materials.
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -60,7 +60,7 @@ export function createStage(container) {
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
   Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 0.5, far: 20 });
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xff3cd2, 1.15);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.6);
   rim.position.set(3.5, 4, -4.5);
   scene.add(rim);
   const fill = new THREE.DirectionalLight(0xffffff, 0.35);
@@ -69,7 +69,7 @@ export function createStage(container) {
 
   // Floor: a mirror underneath a mostly-opaque matte surface → a subtle, soft reflection.
   const mirror = new Reflector(new THREE.CircleGeometry(40, 64), {
-    color: 0x6f6876,
+    color: 0x707070,
     textureWidth: Math.round(container.clientWidth * renderer.getPixelRatio() * 0.5) || 1024,
     textureHeight: Math.round(container.clientHeight * renderer.getPixelRatio() * 0.5) || 1024,
   });
@@ -81,7 +81,7 @@ export function createStage(container) {
   );
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(40, 80, 0x302b36, 0x231f28);
+  const grid = new THREE.GridHelper(40, 80, 0x333333, 0x262626);
   grid.material.transparent = true; grid.material.opacity = 0.35; grid.position.y = 0.002;
   scene.add(grid);
 
